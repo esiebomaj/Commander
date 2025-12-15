@@ -116,7 +116,7 @@ def _dict_to_action(data: Dict[str, Any]) -> ProposedAction:
         confidence=data.get("confidence", 0.5),
         status=data.get("status", "pending"),
         created_at=datetime.fromisoformat(data["created_at"]),
-        source_type=SourceType(data.get("source_type", "email")),
+        source_type=SourceType(data.get("source_type")),
         sender=data.get("sender"),
         summary=data.get("summary"),
     )
@@ -308,6 +308,19 @@ def update_action_status(action_id: int, status: str) -> Optional[ProposedAction
     for act in actions:
         if act["id"] == action_id:
             act["status"] = status
+            _save_actions_raw(actions)
+            return _dict_to_action(act)
+    
+    return None
+
+
+def update_action_payload(action_id: int, payload: Dict[str, Any]) -> Optional[ProposedAction]:
+    """Update an action's payload. Returns the updated action or None if not found."""
+    actions = _load_actions_raw()
+    
+    for act in actions:
+        if act["id"] == action_id:
+            act["payload"] = payload
             _save_actions_raw(actions)
             return _dict_to_action(act)
     

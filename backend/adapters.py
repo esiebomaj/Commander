@@ -22,24 +22,20 @@ def email_to_context(email: EmailMessage) -> ContextItem:
     """
     # Pre-format the context text for LLM prompts
     context_text = (
-        f"[EMAIL]\n"
+        f"[GMAIL]\n"
         f"From: {email.from_email}\n"
         f"Subject: {email.subject}\n"
         f"Received: {email.received_at.isoformat()}\n"
         f"Body:\n{email.body_text}"
+        f"Thread ID: {email.thread_id}"
     )
     
     return ContextItem(
         id=str(uuid4()),
-        source_type=SourceType.EMAIL,
+        source_type=SourceType.GMAIL,
         source_id=email.id,  # Used for deduplication
         timestamp=email.received_at,
-        content={
-            "from_email": email.from_email,
-            "subject": email.subject,
-            "body_text": email.body_text,
-            "thread_id": email.thread_id,
-        },
+        content=email.model_dump(),
         context_text=context_text,
         sender=email.from_email,
         summary=f"{email.subject}: {email.body_text[:120]}...".replace("\n", " ") 

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 class SourceType(str, Enum):
     """Type of input source for context items."""
-    EMAIL = "email"
+    GMAIL = "gmail"
     SLACK = "slack"
     MEETING_TRANSCRIPT = "meeting_transcript"
     CALENDAR_EVENT = "calendar_event"
@@ -91,10 +91,10 @@ class MeetingTranscript(BaseModel):
 
 
 class ActionType(str, Enum):
-    SEND_EMAIL = "send_email"
+    GMAIL_SEND_EMAIL = "gmail_send_email"
+    GMAIL_CREATE_DRAFT = "gmail_create_draft"
     SCHEDULE_MEETING = "schedule_meeting"
     CREATE_TODO = "create_todo"
-    NO_ACTION = "no_action"
 
 
 class ProposedAction(BaseModel):
@@ -109,24 +109,26 @@ class ProposedAction(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     # Preview fields for UI display
-    source_type: SourceType = SourceType.EMAIL
+    source_type: SourceType = SourceType.GMAIL
     sender: Optional[str] = None
     summary: Optional[str] = None  # Short description of what triggered this
 
     def to_prompt_string(self) -> str:
         """Format this action as a string for LLM history prompts."""
-        if self.type == ActionType.SEND_EMAIL:
+        if self.type == ActionType.GMAIL_SEND_EMAIL:
             to = self.payload.get("to_email", "unknown")
-            desc = f"send_email to {to}"
+            desc = f"gmail_send_email to {to}"
+        elif self.type == ActionType.GMAIL_CREATE_DRAFT:
+            to = self.payload.get("to_email", "unknown")
+            desc = f"gmail_create_draft to {to}"
         elif self.type == ActionType.SCHEDULE_MEETING:
             title = self.payload.get("meeting_title", "meeting")
-            desc = f"schedule_meeting: {title}"
+            desc = f"schedule_meeting: {title}\n"
+            desc += f"Meeting time: {self.payload.get('meeting_time', 'unknown')}\n"
+            desc += f"Meeting duration: {self.payload.get('duration_mins', 'unknown')} minutes\n"
         elif self.type == ActionType.CREATE_TODO:
             title = self.payload.get("title", "task")
             desc = f"create_todo: {title}"
-        elif self.type == ActionType.NO_ACTION:
-            reason = self.payload.get("reason", "")[:50]
-            desc = f"no_action ({reason})"
         else:
             desc = self.type.value
         
@@ -135,7 +137,7 @@ class ProposedAction(BaseModel):
 
 class ExecutionResult(BaseModel):
     action_id: int
-    status: Literal["draft_created", "executed", "skipped", "error"]
+    status: Literal["executed", "skipped", "error"]
     result: Dict[str, Any] = Field(default_factory=dict)
     executed_at: datetime = Field(default_factory=datetime.utcnow)
 

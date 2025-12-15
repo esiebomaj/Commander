@@ -85,7 +85,7 @@ def _process_contexts(
 
     return created
 
-SourceType = Literal["email", "slack", "meeting", "all"]
+SourceType = Literal["gmail", "slack", "meeting", "all"]
 
 
 def run_ingest_and_decide(
@@ -107,7 +107,7 @@ def run_ingest_and_decide(
     
     contexts: List[ContextItem] = []
 
-    if source in ("email", "all"):
+    if source in ("gmail", "all"):
         contexts.extend([email_to_context(email) for email in fetch_recent_emails(limit=limit)])
     if source in ("slack", "all"):
         contexts.extend([slack_to_context(msg) for msg in fetch_recent_slack_messages(limit=limit)])
@@ -150,17 +150,12 @@ def approve_action(action_id: int) -> ProposedAction:
     if not action:
         raise ValueError(f"Action {action_id} not found")
     
-    if action.status != "pending":
+    if action.status not in ("pending", "error"):
         return action  # no-op if already handled
     
     result = execute_action(action)
-    
-    if result.status in ("draft_created", "executed", "skipped"):
-        new_status = "executed" if result.status in ("draft_created", "executed") else "skipped"
-    else:
-        new_status = "error"
-    
-    updated = update_action_status(action_id, new_status)
+
+    updated = update_action_status(action_id, result.status)
     return updated or action
 
 
