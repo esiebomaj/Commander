@@ -64,6 +64,7 @@ class EmailMessage(BaseModel):
     subject: str
     body_text: str
     received_at: datetime
+    labels: List[str] = []
 
 
 class SlackMessage(BaseModel):

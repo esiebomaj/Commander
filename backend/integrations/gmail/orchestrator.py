@@ -91,13 +91,14 @@ def process_new_emails(
         raise ValueError("Gmail is not connected. Please authenticate first.")
     
     emails = gmail.fetch_new_emails()
-    
+    print(f"Found {len(emails)} new emails")
+
     if not emails:
         return []
     
     # Process emails and generate actions
     contexts = _process_emails(emails, generate_actions=True, history_limit=history_limit)
-    
+    print(f"Processed {len(contexts)} contexts")
     # Collect all actions created
     from ...storage import get_actions_for_context
     
@@ -126,8 +127,10 @@ def _process_emails(
         List of saved ContextItem objects
     """
     saved_contexts: List[ContextItem] = []
-    
+    print(f"Processing {len(emails)} emails")
     for email in emails:
+
+    
         # Convert to context
         context = email_to_context(email)
         
@@ -136,11 +139,7 @@ def _process_emails(
             print(f"Skipping duplicate email: {email.subject[:50]}...")
             continue
         
-        # Save context
-        save_context(context)
-        saved_contexts.append(context)
-        
-        if generate_actions:
+        if generate_actions and "SENT" not in email.labels: # dont generate actions for sent emails
             # Get recent history for LLM context
             history = get_recent_history(
                 limit=history_limit,
@@ -168,9 +167,15 @@ def _process_emails(
                 )
                 save_action(proposed)
         
+
+        # Save context
+        save_context(context)
+        saved_contexts.append(context)
+
+
         # Mark as processed
         mark_context_processed(context.id)
-    
+    print(f"Saved {len(saved_contexts)} contexts")
     return saved_contexts
 
 

@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from .config import settings
 from .models import ActionType, ContextItem, ProposedAction, SourceType
 
 
@@ -21,9 +22,8 @@ from .models import ActionType, ContextItem, ProposedAction, SourceType
 # Configuration
 # --------------------------------------------------------------------------- #
 
-DATA_DIR = Path(__file__).parent / "data"
-CONTEXTS_FILE = DATA_DIR / "contexts.json"
-ACTIONS_FILE = DATA_DIR / "actions.json"
+CONTEXTS_FILE = settings.data_dir / "contexts.json"
+ACTIONS_FILE = settings.data_dir / "actions.json"
 
 # Auto-incrementing action ID
 _next_action_id: int = 1
@@ -240,6 +240,7 @@ def save_action(action: ProposedAction) -> ProposedAction:
     Save an action. Updates if exists (by id), otherwise appends.
     Returns the saved action.
     """
+    print(f"Saving action: {action.type}")
     actions = _load_actions_raw()
     
     # Check for existing by id

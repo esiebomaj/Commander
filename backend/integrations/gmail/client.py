@@ -26,6 +26,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from ...models import EmailMessage
+from .cleaning import html_to_text, sanitize_body_text
 from ..token_storage import (
     get_token,
     save_token,
@@ -40,8 +41,9 @@ from ..token_storage import (
 # Configuration
 # --------------------------------------------------------------------------- #
 
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
-DEFAULT_CREDENTIALS_FILE = DATA_DIR / "gmail_credentials.json"
+from ...config import settings
+
+DEFAULT_CREDENTIALS_FILE = settings.gmail_credentials_path
 
 # Gmail API scopes - read and send emails
 SCOPES = [
@@ -298,7 +300,7 @@ class GmailIntegration:
     def fetch_recent_emails(
         self,
         max_results: int = 10,
-        query: str = "",
+        query: str = "is:important",
         include_spam_trash: bool = False,
     ) -> List[EmailMessage]:
         """
@@ -384,19 +386,17 @@ class GmailIntegration:
             subject=headers.get("subject", "(no subject)"),
             body_text=body_text,
             received_at=received_at,
+            labels=msg.get("labelIds", []),
         )
     
     def _extract_body(self, payload: Dict[str, Any]) -> str:
         """Extract the plain text body from a message payload."""
-        def sanitize(text: str) -> str:
-            return self._sanitize_body_text(text)
-
         # Try to get plain text directly
         if payload.get("mimeType") == "text/plain":
             data = payload.get("body", {}).get("data", "")
             if data:
                 raw = base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
-                return sanitize(raw)
+                return sanitize_body_text(raw)
         
         # Check parts for multipart messages
         parts = payload.get("parts", [])
@@ -405,7 +405,7 @@ class GmailIntegration:
                 data = part.get("body", {}).get("data", "")
                 if data:
                     raw = base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
-                    return sanitize(raw)
+                    return sanitize_body_text(raw)
             
             # Recurse into nested parts
             if part.get("parts"):
@@ -419,39 +419,9 @@ class GmailIntegration:
                 data = part.get("body", {}).get("data", "")
                 if data:
                     html = base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
-                    # Simple HTML stripping (use html2text for better results)
-                    try:
-                        import html2text
-                        h = html2text.HTML2Text()
-                        h.ignore_links = False
-                        return sanitize(h.handle(html))
-                    except ImportError:
-                        # Fallback: basic HTML tag removal
-                        return sanitize(re.sub(r'<[^>]+>', '', html))
+                    return sanitize_body_text(html_to_text(html))
         
         return ""
-
-    @staticmethod
-    def _sanitize_body_text(text: str) -> str:
-        """Remove zero-width/control spacing characters and normalize whitespace."""
-        if not text:
-            return ""
-
-        # Replace non-breaking/figure spaces with regular spaces
-        text = (
-            text.replace("\u00a0", " ")
-            .replace("\u2007", " ")
-            .replace("\u202f", " ")
-        )
-
-        # Remove zero-width and soft hyphen style characters
-        text = re.sub(r"[\u200b\u200c\u200d\uFEFF\u2060\u034f\u00ad]", "", text)
-
-        # Collapse excessive spaces and newlines
-        text = re.sub(r"[ \t]{2,}", " ", text)
-        text = re.sub(r"\n{3,}", "\n\n", text)
-
-        return text.strip()
     
     # ----------------------------------------------------------------------- #
     # Incremental Sync (New Emails)
@@ -484,14 +454,17 @@ class GmailIntegration:
                 userId="me",
                 startHistoryId=history_id,
                 historyTypes=["messageAdded"],
+                labelId="IMPORTANT",
             ).execute()
             
             history_records = results.get("history", [])
             
-            # Extract new message IDs
+            # Extract new message IDs 
             for record in history_records:
                 for msg_added in record.get("messagesAdded", []):
-                    msg_id = msg_added.get("message", {}).get("id")
+                    message = msg_added.get("message", {})
+                    msg_id = message.get("id")
+     
                     if msg_id and msg_id not in seen_ids:
                         seen_ids.add(msg_id)
                         email = self._fetch_email_by_id(msg_id)

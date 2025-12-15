@@ -249,6 +249,6 @@ def gmail_webhook(payload: GmailWebhookPayload):
         return {"status": "no_data"}
     except Exception as e:
         # Always return 200 to acknowledge receipt (prevents retries)
-        return {"status": "error", "message": str(e)}
-
+        print(f"Error processing webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing webhook")
 

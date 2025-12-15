@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
+from .config import settings
 from .models import ActionType, ContextItem, ProposedAction
 from .tools import ALL_TOOLS
 
@@ -117,7 +118,7 @@ def _parse_tool_call(tool_call: Dict[str, Any]) -> Tuple[ActionType, Dict[str, A
 def decide_actions_for_context(
     context: ContextItem,
     history: Optional[List[Tuple[ContextItem, List[ProposedAction]]]] = None,
-    model: str = "gpt-4o-mini",
+    model: str | None = None,
 ) -> List[Tuple[ActionType, Dict[str, Any], float]]:
     """
     Call the LLM with tool-calling enabled and return a list of decided actions.
@@ -130,10 +131,11 @@ def decide_actions_for_context(
     Returns:
         List of (ActionType, payload_dict, confidence) tuples
     """
-    llm = ChatOpenAI(model=model, temperature=0.2)
+    model = model or settings.llm_model
+    llm = ChatOpenAI(model=model, temperature=0.2, api_key=settings.openai_api_key)
     llm_with_tools = llm.bind_tools(ALL_TOOLS)
 
-    # print(_build_user_prompt(context, history))
+    print(_build_user_prompt(context, history))
     
     messages = [
         SystemMessage(content=_SYSTEM_PROMPT),

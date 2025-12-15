@@ -10,13 +10,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from datetime import datetime
 
+from ..config import settings
+
 
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
 
-DATA_DIR = Path(__file__).parent.parent / "data"
-TOKENS_FILE = DATA_DIR / "tokens.json"
+TOKENS_FILE = settings.data_dir / "tokens.json"
 
 
 # --------------------------------------------------------------------------- #
@@ -35,7 +36,7 @@ def _load_tokens() -> Dict[str, Any]:
 
 def _save_tokens(tokens: Dict[str, Any]) -> None:
     """Save tokens to the JSON file."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
     TOKENS_FILE.write_text(json.dumps(tokens, indent=2, default=str))
 
 
