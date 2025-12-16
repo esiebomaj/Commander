@@ -37,10 +37,13 @@ export function getPayloadDisplay(type: string, payload: Record<string, any>): P
           })
         : null
       const durationStr = payload.duration_mins ? ` (${payload.duration_mins} min)` : ''
+      const attendeesStr = payload.attendees ? `Attendees: ${payload.attendees.join(', ')}` : ""
+      const descriptionStr = payload.meeting_description ? `Description: ${payload.meeting_description}` : ""
+      const detailStr = attendeesStr + "\n" + descriptionStr
       return {
         primary: payload.meeting_title || 'Untitled meeting',
         secondary: timeStr ? timeStr + durationStr : null,
-        detail: payload.meeting_description || null,
+        detail: detailStr || null,
       }
     }
     case 'create_todo': {

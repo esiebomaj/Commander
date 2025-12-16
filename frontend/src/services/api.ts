@@ -1,4 +1,4 @@
-import type { ProposedAction, GmailStatus, GmailAuthUrlResponse } from './types'
+import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -87,6 +87,28 @@ export async function syncGmail(maxResults: number = 20): Promise<{ synced_count
 
 export async function processNewGmailEmails(): Promise<{ proposed_actions: ProposedAction[] }> {
   return fetchApi('/integrations/gmail/process-new', {
+    method: 'POST',
+  })
+}
+
+// Calendar Integration API
+export async function getCalendarStatus(): Promise<CalendarStatus> {
+  return fetchApi<CalendarStatus>('/integrations/calendar/status')
+}
+
+export async function getCalendarAuthUrl(redirectUri?: string): Promise<CalendarAuthUrlResponse> {
+  const query = redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''
+  return fetchApi<CalendarAuthUrlResponse>(`/integrations/calendar/auth-url${query}`)
+}
+
+export async function completeCalendarAuth(code: string, state?: string): Promise<CalendarStatus> {
+  const params = new URLSearchParams({ code })
+  if (state) params.append('state', state)
+  return fetchApi<CalendarStatus>(`/integrations/calendar/auth?${params.toString()}`)
+}
+
+export async function disconnectCalendar(): Promise<CalendarStatus> {
+  return fetchApi<CalendarStatus>('/integrations/calendar/disconnect', {
     method: 'POST',
   })
 }

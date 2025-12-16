@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Mail, MessageSquare, CheckCircle2, Circle } from 'lucide-react'
+import { Mail, MessageSquare, Calendar, CheckCircle2, Circle } from 'lucide-react'
 
 interface IntegrationCardProps {
   name: string
@@ -16,6 +16,7 @@ interface IntegrationCardProps {
 const integrationConfig: Record<string, { icon: typeof Mail; color: string; bg: string }> = {
   Gmail: { icon: Mail, color: 'text-red-600', bg: 'bg-red-50' },
   Slack: { icon: MessageSquare, color: 'text-purple-600', bg: 'bg-purple-50' },
+  Calendar: { icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
 }
 
 export function IntegrationCard({

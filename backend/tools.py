@@ -6,7 +6,7 @@ Tools are registered by action type for easy dispatch.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -17,15 +17,6 @@ from .models import ActionType
 # --------------------------------------------------------------------------- #
 # Tool Input Schemas
 # --------------------------------------------------------------------------- #
-
-class ScheduleMeetingInput(BaseModel):
-    """Input for scheduling a meeting."""
-    meeting_title: str = Field(..., description="Title of the meeting")
-    meeting_description: str = Field(..., description="Description of the meeting")
-    meeting_time: str = Field(..., description="Date and time of the meeting (ISO format)")
-    duration_mins: int = Field(30, description="Duration of the meeting in minutes")
-    confidence: float = Field(0.7, ge=0, le=1, description="Model confidence in this action")
-
 
 class CreateTodoInput(BaseModel):
     """Input for creating a todo item."""
@@ -38,25 +29,6 @@ class CreateTodoInput(BaseModel):
 # --------------------------------------------------------------------------- #
 # Core Tools (schema + execution)
 # --------------------------------------------------------------------------- #
-
-@tool(args_schema=ScheduleMeetingInput)
-def schedule_meeting(
-    meeting_title: str,
-    meeting_description: str,
-    meeting_time: str,
-    duration_mins: int = 30,
-    **kwargs,
-) -> Dict[str, Any]:
-    """Schedule a meeting on the user's calendar."""
-    # TODO: Integrate with calendar API
-    return {
-        "success": True,
-        "note": "Meeting scheduled (mock)",
-        "meeting_title": meeting_title,
-        "meeting_time": meeting_time,
-        "duration_mins": duration_mins,
-    }
-
 
 @tool(args_schema=CreateTodoInput)
 def create_todo(
@@ -80,19 +52,20 @@ def create_todo(
 # Tool Registry
 # --------------------------------------------------------------------------- #
 
-# Core tools list (for LLM binding)
-CORE_TOOLS = [schedule_meeting, create_todo]
+# Core tools list (for LLM binding) - only create_todo remains here
+CORE_TOOLS = [create_todo]
 
+# Import integration tools
 from .integrations.gmail.tools import GMAIL_TOOLS, GMAIL_TOOL_EXECUTORS
+from .integrations.google_calendar.tools import CALENDAR_TOOLS, CALENDAR_TOOL_EXECUTORS
 
 # All tools for LLM
-ALL_TOOLS = GMAIL_TOOLS + CORE_TOOLS
+ALL_TOOLS = GMAIL_TOOLS + CALENDAR_TOOLS + CORE_TOOLS
 
 # Map ActionType to executor function
 TOOL_EXECUTORS: Dict[ActionType, Callable] = {
-    ActionType.SCHEDULE_MEETING: schedule_meeting,
     ActionType.CREATE_TODO: create_todo,
-} | GMAIL_TOOL_EXECUTORS
+} | GMAIL_TOOL_EXECUTORS | CALENDAR_TOOL_EXECUTORS
 
 
 def execute_tool(action_type: ActionType, payload: Dict[str, Any]) -> Dict[str, Any]:

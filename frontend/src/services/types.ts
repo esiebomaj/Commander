@@ -47,3 +47,13 @@ export interface GmailAuthUrlResponse {
   auth_url: string
   instructions: string
 }
+
+export interface CalendarStatus {
+  connected: boolean
+  email?: string
+}
+
+export interface CalendarAuthUrlResponse {
+  auth_url: string
+  instructions: string
+}
