@@ -12,7 +12,7 @@ from .orchestrator import (
     sync_recent_emails,
     setup_push_notifications,
 )
-
+from .routes import router
 from .tools import (
     GMAIL_TOOLS,
     GMAIL_TOOL_EXECUTORS,
@@ -32,6 +32,9 @@ __all__ = [
     "process_new_emails",
     "sync_recent_emails",
     "setup_push_notifications",
+
+    # API Router
+    "router",
 
     # Tools (for LLM + execution)
     "GMAIL_TOOLS",

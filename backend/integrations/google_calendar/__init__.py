@@ -9,6 +9,7 @@ from .client import (
     get_calendar_status,
     disconnect_calendar,
 )
+from .routes import router
 from .tools import (
     CALENDAR_TOOLS,
     CALENDAR_TOOL_EXECUTORS,
@@ -20,6 +21,9 @@ __all__ = [
     "get_calendar",
     "get_calendar_status",
     "disconnect_calendar",
+    # API Router
+    "router",
+    # Tools
     "CALENDAR_TOOLS",
     "CALENDAR_TOOL_EXECUTORS",
     "schedule_meeting",
