@@ -1,12 +1,13 @@
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Mail, MessageSquare, Calendar, CheckCircle2, Circle } from 'lucide-react'
+import { Mail, MessageSquare, Calendar, CheckCircle2, Circle, FileText } from 'lucide-react'
 
 interface IntegrationCardProps {
   name: string
   description: string
   connected: boolean
   email?: string
+  extraInfo?: string
   onConnect?: () => void
   onDisconnect?: () => void
   onSync?: () => void
@@ -17,6 +18,7 @@ const integrationConfig: Record<string, { icon: typeof Mail; color: string; bg: 
   Gmail: { icon: Mail, color: 'text-red-600', bg: 'bg-red-50' },
   Slack: { icon: MessageSquare, color: 'text-purple-600', bg: 'bg-purple-50' },
   Calendar: { icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+  Drive: { icon: FileText, color: 'text-green-600', bg: 'bg-green-50' },
 }
 
 export function IntegrationCard({
@@ -24,6 +26,7 @@ export function IntegrationCard({
   description,
   connected,
   email,
+  extraInfo,
   onConnect,
   onDisconnect,
   onSync,
@@ -59,6 +62,10 @@ export function IntegrationCard({
           
           {connected && email && (
             <p className="text-sm text-gray-600 mt-2 font-medium">{email}</p>
+          )}
+          
+          {connected && extraInfo && (
+            <p className="text-xs text-gray-500 mt-1">{extraInfo}</p>
           )}
           
           <div className="flex items-center gap-2 mt-4">

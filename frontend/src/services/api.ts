@@ -1,4 +1,4 @@
-import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse } from './types'
+import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, ProcessTranscriptResponse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -109,6 +109,34 @@ export async function completeCalendarAuth(code: string, state?: string): Promis
 
 export async function disconnectCalendar(): Promise<CalendarStatus> {
   return fetchApi<CalendarStatus>('/integrations/calendar/disconnect', {
+    method: 'POST',
+  })
+}
+
+// Drive Integration API
+export async function getDriveStatus(): Promise<DriveStatus> {
+  return fetchApi<DriveStatus>('/integrations/drive/status')
+}
+
+export async function getDriveAuthUrl(redirectUri?: string): Promise<DriveAuthUrlResponse> {
+  const query = redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''
+  return fetchApi<DriveAuthUrlResponse>(`/integrations/drive/auth-url${query}`)
+}
+
+export async function completeDriveAuth(code: string, state?: string): Promise<DriveStatus> {
+  const params = new URLSearchParams({ code })
+  if (state) params.append('state', state)
+  return fetchApi<DriveStatus>(`/integrations/drive/auth?${params.toString()}`)
+}
+
+export async function disconnectDrive(): Promise<DriveStatus> {
+  return fetchApi<DriveStatus>('/integrations/drive/disconnect', {
+    method: 'POST',
+  })
+}
+
+export async function processRecentTranscripts(maxFiles: number = 5, sinceHours: number = 24): Promise<{ success: boolean; processed_count: number; transcripts: Array<{ context_id: string; title: string; actions_created: number }> }> {
+  return fetchApi(`/integrations/drive/process-recent?max_files=${maxFiles}&since_hours=${sinceHours}`, {
     method: 'POST',
   })
 }

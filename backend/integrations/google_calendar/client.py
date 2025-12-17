@@ -39,8 +39,11 @@ from ...config import settings
 DEFAULT_CREDENTIALS_FILE = settings.gmail_credentials_path
 
 # Google Calendar API scopes
+# calendar.readonly is needed to read calendar metadata (for getting user email)
+# Users who previously authorized may need to re-authorize to grant these scopes
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/calendar.readonly",
 ]
 
 
@@ -117,7 +120,8 @@ class CalendarIntegration:
             # Get primary calendar to find user email
             calendar = service.calendars().get(calendarId="primary").execute()
             return calendar.get("id")  # Primary calendar ID is the user's email
-        except Exception:
+        except Exception as e:
+            print(f"Error getting user email: {e}")
             return None
     
     # ----------------------------------------------------------------------- #

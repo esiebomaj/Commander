@@ -89,6 +89,9 @@ class MeetingTranscript(BaseModel):
     transcript: str
     meeting_time: datetime
     duration_mins: Optional[int] = None
+    summary: Optional[str] = None  # LLM-generated summary
+    drive_file_id: Optional[str] = None  # Google Drive file ID
+    drive_link: Optional[str] = None  # Google Drive web view link
 
 
 class ActionType(str, Enum):

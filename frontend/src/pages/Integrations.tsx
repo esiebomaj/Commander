@@ -11,6 +11,12 @@ import {
   useCalendarConnect,
   useCalendarDisconnect,
 } from '@/hooks/useCalendarIntegration'
+import {
+  useDriveStatus,
+  useDriveConnect,
+  useDriveDisconnect,
+  useDriveSync,
+} from '@/hooks/useDriveIntegration'
 import { useToast } from '@/components/ui/use-toast'
 import { useSearchParams } from 'react-router-dom'
 
@@ -28,6 +34,12 @@ export function IntegrationsPage() {
   const { data: calendarStatus, isLoading: calendarLoading } = useCalendarStatus()
   const calendarConnectMutation = useCalendarConnect()
   const calendarDisconnectMutation = useCalendarDisconnect()
+  
+  // Drive hooks
+  const { data: driveStatus, isLoading: driveLoading } = useDriveStatus()
+  const driveConnectMutation = useDriveConnect()
+  const driveDisconnectMutation = useDriveDisconnect()
+  const driveSyncMutation = useDriveSync()
   
   // Handle OAuth callbacks
   useEffect(() => {
@@ -52,6 +64,18 @@ export function IntegrationsPage() {
       if (window.opener) {
         window.opener.postMessage(
           { type: 'calendar_auth_complete', code, state },
+          window.location.origin
+        )
+        window.close()
+      }
+    }
+    
+    const isDriveCallback = searchParams.get('drive_callback')
+    if (code && isDriveCallback) {
+      console.log('Drive OAuth callback:', { code, state })
+      if (window.opener) {
+        window.opener.postMessage(
+          { type: 'drive_auth_complete', code, state },
           window.location.origin
         )
         window.close()
@@ -141,7 +165,56 @@ export function IntegrationsPage() {
     }
   }
   
-  if (gmailLoading || calendarLoading) {
+  // Drive handlers
+  const handleDriveConnect = async () => {
+    try {
+      await driveConnectMutation.mutateAsync()
+      toast({
+        title: "Connected",
+        description: "Google Drive integration is now connected.",
+      })
+    } catch (error) {
+      toast({
+        title: "Connection failed",
+        description: error instanceof Error ? error.message : "Failed to connect Google Drive.",
+        variant: "destructive",
+      })
+    }
+  }
+  
+  const handleDriveDisconnect = async () => {
+    try {
+      await driveDisconnectMutation.mutateAsync()
+      toast({
+        title: "Disconnected",
+        description: "Google Drive integration has been disconnected.",
+      })
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to disconnect Google Drive.",
+        variant: "destructive",
+      })
+    }
+  }
+  
+  const handleDriveSync = async () => {
+    try {
+      const result = await driveSyncMutation.mutateAsync({})
+      toast({
+        title: "Sync complete",
+        description: `Processed ${result.processed_count} transcript(s).`,
+      })
+    } catch {
+      toast({
+        title: "Sync failed",
+        description: "Failed to sync meeting transcripts.",
+        variant: "destructive",
+      })
+    }
+  }
+  
+  if (gmailLoading || calendarLoading || driveLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
@@ -184,6 +257,22 @@ export function IntegrationsPage() {
           loading={
             calendarConnectMutation.isPending ||
             calendarDisconnectMutation.isPending
+          }
+        />
+        
+        <IntegrationCard
+          name="Drive"
+          description="Fetch and summarize meeting transcripts"
+          connected={driveStatus?.connected || false}
+          email={driveStatus?.email}
+          extraInfo={driveStatus?.webhook_active ? 'Webhook active' : undefined}
+          onConnect={handleDriveConnect}
+          onDisconnect={handleDriveDisconnect}
+          onSync={handleDriveSync}
+          loading={
+            driveConnectMutation.isPending ||
+            driveDisconnectMutation.isPending ||
+            driveSyncMutation.isPending
           }
         />
         

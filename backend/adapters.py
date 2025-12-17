@@ -90,27 +90,23 @@ def meeting_to_context(meeting: MeetingTranscript) -> ContextItem:
     
     all_participants_str = ", ".join(meeting.participants)
     
-    # Pre-format the context text for LLM prompts
     context_text = (
         f"[MEETING TRANSCRIPT]\n"
         f"Title: {meeting.title}\n"
         f"Participants: {all_participants_str}\n"
         f"Time: {meeting.meeting_time.isoformat()}\n"
-        f"Duration: {meeting.duration_mins} minutes\n"
-        f"Transcript:\n{meeting.transcript}"
+        f"\n{meeting.summary}\n"
     )
+
+    # Build content dict with all available fields
+    content = meeting.model_dump()
     
     return ContextItem(
         id=str(uuid4()),
         source_type=SourceType.MEETING_TRANSCRIPT,
         source_id=meeting.id,
         timestamp=meeting.meeting_time,
-        content={
-            "title": meeting.title,
-            "participants": meeting.participants,
-            "transcript": meeting.transcript,
-            "duration_mins": meeting.duration_mins,
-        },
+        content=content,
         context_text=context_text,
         sender=participants_str,
         summary=f"Meeting: {meeting.title} ({participants_str})",
@@ -165,17 +161,3 @@ def calendar_event_to_context(
         sender=attendees_str,
         summary=f"Event: {title} ({attendees_str})",
     )
-
-
-# --------------------------------------------------------------------------- #
-# Helper to format context for LLM prompts
-# --------------------------------------------------------------------------- #
-
-def format_context_for_prompt(context: ContextItem) -> str:
-    """
-    Get the pre-formatted context text for LLM prompts.
-    
-    Returns the context_text attribute which is set by the adapter
-    when the ContextItem is created.
-    """
-    return context.context_text

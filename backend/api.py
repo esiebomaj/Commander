@@ -18,6 +18,7 @@ from .storage import update_action_payload
 # Import integration routers
 from .integrations.gmail.routes import router as gmail_router
 from .integrations.google_calendar.routes import router as calendar_router
+from .integrations.google_drive.routes import router as drive_router
 
 
 app = FastAPI(title="Commander (MVP)", version="0.1.0")
@@ -34,6 +35,7 @@ app.add_middleware(
 # Include integration routers
 app.include_router(gmail_router)
 app.include_router(calendar_router)
+app.include_router(drive_router)
 
 
 # --------------------------------------------------------------------------- #

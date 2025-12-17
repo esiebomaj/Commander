@@ -57,3 +57,22 @@ export interface CalendarAuthUrlResponse {
   auth_url: string
   instructions: string
 }
+
+export interface DriveStatus {
+  connected: boolean
+  email?: string
+  webhook_active: boolean
+  webhook_expiration?: string
+}
+
+export interface DriveAuthUrlResponse {
+  auth_url: string
+  instructions: string
+}
+
+export interface ProcessTranscriptResponse {
+  success: boolean
+  context_id?: string
+  actions_created: number
+  message: string
+}
