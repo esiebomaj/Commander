@@ -1,7 +1,7 @@
 """
 Google Calendar integration for Commander.
 
-Provides OAuth authentication and calendar event creation for scheduling meetings.
+Provides calendar event creation and listing for scheduling meetings.
 
 Setup:
 1. Create a Google Cloud project and enable Google Calendar API
@@ -13,47 +13,31 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-import traceback
 from typing import Any, Dict, List, Optional, Union
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from ..token_storage import (
-    get_token,
-    save_token,
-    delete_token,
-    has_token,
-)
+from ...config import settings
+from ..google.oauth import GoogleOAuthClient
+from ..token_storage import delete_token
 
 
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
 
-from ...config import settings
-
 DEFAULT_CREDENTIALS_FILE = settings.gmail_credentials_path
-
-# Google Calendar API scopes
-# calendar.readonly is needed to read calendar metadata (for getting user email)
-# Users who previously authorized may need to re-authorize to grant these scopes
-SCOPES = [
-    "https://www.googleapis.com/auth/calendar.events",
-    "https://www.googleapis.com/auth/calendar.readonly",
-]
 
 
 # --------------------------------------------------------------------------- #
 # Google Calendar Integration Class
 # --------------------------------------------------------------------------- #
 
-class CalendarIntegration:
+class CalendarIntegration(GoogleOAuthClient):
     """
     Google Calendar integration for creating calendar events.
+    
+    Extends GoogleOAuthClient to inherit OAuth flow and credential management.
     
     Usage:
         calendar = CalendarIntegration()
@@ -74,41 +58,18 @@ class CalendarIntegration:
         )
     """
     
-    def __init__(self, credentials_file: Union[str, Path] = DEFAULT_CREDENTIALS_FILE):
-        """
-        Initialize Calendar integration.
-        
-        Args:
-            credentials_file: Path to the OAuth credentials JSON file.
-        
-        Raises:
-            FileNotFoundError: If credentials file doesn't exist
-        """
-        self._credentials_file = Path(credentials_file)
-        if not self._credentials_file.exists():
-            raise FileNotFoundError(
-                f"Google credentials file not found at {self._credentials_file}. "
-                "Please download OAuth credentials from Google Cloud Console."
-            )
-        
-        self._service = None
-        self._credentials: Optional[Credentials] = None
-        self._flow: Optional[InstalledAppFlow] = None
+    # Google OAuth configuration
+    SERVICE_NAME = "google_calendar"
+    API_NAME = "calendar"
+    API_VERSION = "v3"
+    SCOPES = [
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/calendar.readonly",
+    ]
     
     # ----------------------------------------------------------------------- #
-    # Connection Status
+    # User Info (required by base class)
     # ----------------------------------------------------------------------- #
-    
-    def is_connected(self) -> bool:
-        """Check if the Calendar integration is connected and has valid credentials."""
-        if not has_token("google_calendar"):
-            return False
-        
-        try:
-            creds = self._get_credentials()
-            return creds is not None and creds.valid
-        except Exception:
-            return False
     
     def get_user_email(self) -> Optional[str]:
         """Get the email address of the connected user."""
@@ -123,135 +84,6 @@ class CalendarIntegration:
         except Exception as e:
             print(f"Error getting user email: {e}")
             return None
-    
-    # ----------------------------------------------------------------------- #
-    # OAuth Flow
-    # ----------------------------------------------------------------------- #
-    
-    def get_auth_url(self, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob") -> str:
-        """
-        Get the OAuth authorization URL for the user to visit.
-        
-        Args:
-            redirect_uri: The redirect URI for OAuth. Use "urn:ietf:wg:oauth:2.0:oob" 
-                         for copy/paste flow, or a web callback URL for web apps.
-        
-        Returns:
-            The authorization URL for the user to visit
-        """
-        self._flow = InstalledAppFlow.from_client_secrets_file(
-            str(self._credentials_file),
-            scopes=SCOPES,
-            redirect_uri=redirect_uri,
-        )
-        
-        auth_url, _ = self._flow.authorization_url(
-            access_type="offline",
-            prompt="consent",
-        )
-        
-        return auth_url
-    
-    def complete_auth(self, authorization_code: str) -> bool:
-        """
-        Complete the OAuth flow with the authorization code.
-        
-        Args:
-            authorization_code: The code returned after user authorization
-        
-        Returns:
-            True if authentication was successful
-        """
-        if self._flow is None:
-            raise ValueError("Must call get_auth_url() first to start the OAuth flow")
-        
-        try:
-            self._flow.fetch_token(code=authorization_code)
-            creds = self._flow.credentials
-            
-            # Save credentials
-            save_token("google_calendar", {
-                "token": creds.token,
-                "refresh_token": creds.refresh_token,
-                "token_uri": creds.token_uri,
-                "client_id": creds.client_id,
-                "client_secret": creds.client_secret,
-                "scopes": list(creds.scopes) if creds.scopes else SCOPES,
-            })
-            
-            self._credentials = creds
-            self._service = None  # Reset service to use new credentials
-            self._flow = None
-            
-            return True
-        except Exception as e:
-            print(f"Error completing OAuth: {e}")
-            return False
-    
-    def disconnect(self) -> bool:
-        """
-        Disconnect Calendar by removing stored credentials.
-        
-        Returns:
-            True if credentials were removed
-        """
-        self._credentials = None
-        self._service = None
-        return delete_token("google_calendar")
-    
-    # ----------------------------------------------------------------------- #
-    # Private: Credentials & Service
-    # ----------------------------------------------------------------------- #
-    
-    def _get_credentials(self) -> Optional[Credentials]:
-        """Get or refresh Calendar credentials."""
-        if self._credentials and self._credentials.valid:
-            return self._credentials
-        
-        token_data = get_token("google_calendar")
-        if not token_data:
-            return None
-        
-        try:
-            creds = Credentials(
-                token=token_data.get("token"),
-                refresh_token=token_data.get("refresh_token"),
-                token_uri=token_data.get("token_uri"),
-                client_id=token_data.get("client_id"),
-                client_secret=token_data.get("client_secret"),
-                scopes=token_data.get("scopes", SCOPES),
-            )
-            
-            # Refresh if expired
-            if creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-                # Save refreshed token
-                save_token("google_calendar", {
-                    "token": creds.token,
-                    "refresh_token": creds.refresh_token,
-                    "token_uri": creds.token_uri,
-                    "client_id": creds.client_id,
-                    "client_secret": creds.client_secret,
-                    "scopes": list(creds.scopes) if creds.scopes else SCOPES,
-                })
-            
-            self._credentials = creds
-            return creds
-        except Exception as e:
-            print(f"Error loading credentials: {e}")
-            return None
-    
-    def _get_service(self):
-        """Get the Calendar API service, initializing if needed."""
-        if self._service:
-            return self._service
-        
-        creds = self._get_credentials()
-        if not creds:
-            raise ValueError("Not authenticated. Call run_local_auth_flow() or complete_auth() first.")
-        
-        self._service = build("calendar", "v3", credentials=creds)
-        return self._service
     
     # ----------------------------------------------------------------------- #
     # Calendar Event Operations
