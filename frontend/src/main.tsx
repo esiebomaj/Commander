@@ -7,6 +7,19 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 
 console.log('Main.tsx loading...')
 
+// Initialize theme before React renders to prevent flash
+const initTheme = () => {
+  const stored = localStorage.getItem('commander-theme')
+  const theme = stored === 'light' || stored === 'dark' ? stored : 'system'
+  
+  if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.classList.remove('dark')
+  }
+}
+initTheme()
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -16,6 +29,20 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Register service worker for push notifications
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/',
+      })
+      console.log('Service Worker registered:', registration.scope)
+    } catch (error) {
+      console.error('Service Worker registration failed:', error)
+    }
+  })
+}
 
 const rootElement = document.getElementById('root')!
   createRoot(rootElement).render(

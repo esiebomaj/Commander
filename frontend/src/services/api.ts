@@ -1,4 +1,4 @@
-import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, ProcessTranscriptResponse } from './types'
+import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, ProcessTranscriptResponse, PushStatus, VapidPublicKeyResponse, PushSubscribeRequest, PushSubscribeResponse, PushTestResponse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -139,4 +139,34 @@ export async function processRecentTranscripts(maxFiles: number = 5, sinceHours:
   return fetchApi(`/integrations/drive/process-recent?max_files=${maxFiles}&since_hours=${sinceHours}`, {
     method: 'POST',
   })
+}
+
+// Push Notification API
+export async function getVapidPublicKey(): Promise<VapidPublicKeyResponse> {
+  return fetchApi<VapidPublicKeyResponse>('/push/vapid-public-key')
+}
+
+export async function subscribeToPush(subscription: PushSubscribeRequest): Promise<PushSubscribeResponse> {
+  return fetchApi<PushSubscribeResponse>('/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify(subscription),
+  })
+}
+
+export async function unsubscribeFromPush(endpoint: string): Promise<PushSubscribeResponse> {
+  return fetchApi<PushSubscribeResponse>('/push/unsubscribe', {
+    method: 'POST',
+    body: JSON.stringify({ endpoint }),
+  })
+}
+
+export async function sendTestNotification(title?: string, body?: string): Promise<PushTestResponse> {
+  return fetchApi<PushTestResponse>('/push/test', {
+    method: 'POST',
+    body: JSON.stringify({ title, body }),
+  })
+}
+
+export async function getPushStatus(): Promise<PushStatus> {
+  return fetchApi<PushStatus>('/push/status')
 }

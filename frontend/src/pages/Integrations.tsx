@@ -217,7 +217,7 @@ export function IntegrationsPage() {
   if (gmailLoading || calendarLoading || driveLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-muted border-t-foreground rounded-full animate-spin" />
       </div>
     )
   }
@@ -225,8 +225,8 @@ export function IntegrationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Integrations</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-semibold text-foreground">Integrations</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Connect your accounts to automate your workflow
         </p>
       </div>

@@ -77,7 +77,7 @@ export function ActionsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-muted border-t-foreground rounded-full animate-spin" />
       </div>
     )
   }
@@ -85,7 +85,7 @@ export function ActionsPage() {
   if (error) {
     return (
       <div className="text-center py-16">
-        <p className="text-red-600">Error loading actions. Please try again.</p>
+        <p className="text-destructive">Error loading actions. Please try again.</p>
       </div>
     )
   }
@@ -94,13 +94,13 @@ export function ActionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Actions</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-semibold text-foreground">Actions</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Review and manage your automated actions
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-gray-500">{filteredActions.length} actions</span>
+          <span className="text-muted-foreground">{filteredActions.length} actions</span>
         </div>
       </div>
       

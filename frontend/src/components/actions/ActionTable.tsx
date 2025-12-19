@@ -14,15 +14,15 @@ interface ActionTableProps {
 const getStatusConfig = (status: string) => {
   switch (status) {
     case 'pending':
-      return { icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', label: 'Pending' }
+      return { icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950', label: 'Pending' }
     case 'executed':
-      return { icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Executed' }
+      return { icon: CheckCircle2, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950', label: 'Executed' }
     case 'skipped':
-      return { icon: XCircle, color: 'text-gray-500', bg: 'bg-gray-100', label: 'Skipped' }
+      return { icon: XCircle, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Skipped' }
     case 'error':
-      return { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50', label: 'Error' }
+      return { icon: AlertCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950', label: 'Error' }
     default:
-      return { icon: Clock, color: 'text-gray-500', bg: 'bg-gray-100', label: status }
+      return { icon: Clock, color: 'text-muted-foreground', bg: 'bg-muted', label: status }
   }
 }
 
@@ -46,28 +46,28 @@ export function ActionTable({ actions, onEdit, onApprove, onSkip }: ActionTableP
   if (actions.length === 0) {
     return (
       <div className="text-center py-16">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <FileText className="h-8 w-8 text-gray-400" />
+        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+          <FileText className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-1">No actions found</h3>
-        <p className="text-sm text-gray-500">Actions will appear here when generated</p>
+        <h3 className="text-lg font-medium text-foreground mb-1">No actions found</h3>
+        <p className="text-sm text-muted-foreground">Actions will appear here when generated</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-card rounded-xl border border-border overflow-hidden">
       <table className="w-full">
         <thead>
-          <tr className="border-b border-gray-200 bg-gray-50/50">
-            <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3">Action</th>
-            <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3">Status</th>
-            <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3">Source</th>
-            <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3">Created</th>
-            <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3">Actions</th>
+          <tr className="border-b border-border bg-muted/50">
+            <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">Action</th>
+            <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">Status</th>
+            <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">Source</th>
+            <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">Created</th>
+            <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-border">
           {actions.map((action) => {
             const statusConfig = getStatusConfig(action.status)
             const StatusIcon = statusConfig.icon
@@ -75,26 +75,26 @@ export function ActionTable({ actions, onEdit, onApprove, onSkip }: ActionTableP
             const payloadDisplay = getPayloadDisplay(action.type, action.payload)
             
             return (
-              <tr key={action.id} className="hover:bg-gray-50/50 transition-colors">
+              <tr key={action.id} className="hover:bg-muted/50 transition-colors">
                 <td className="px-4 py-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                      <ActionIcon className="h-4 w-4 text-gray-600" />
+                    <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                      <ActionIcon className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs text-gray-500 mb-0.5">
+                      <div className="text-xs text-muted-foreground mb-0.5">
                         {getActionLabel(action.type)}
                       </div>
-                      <div className="font-medium text-sm text-gray-900 truncate max-w-[300px]">
+                      <div className="font-medium text-sm text-foreground truncate max-w-[300px]">
                         {payloadDisplay.primary}
                       </div>
                       {payloadDisplay.secondary && (
-                        <div className="text-sm text-gray-500 truncate max-w-[300px]">
+                        <div className="text-sm text-muted-foreground truncate max-w-[300px]">
                           {payloadDisplay.secondary}
                         </div>
                       )}
                       {payloadDisplay.detail && (
-                        <div className="text-sm text-gray-400 truncate max-w-[300px] mt-0.5">
+                        <div className="text-sm text-muted-foreground/70 truncate max-w-[300px] mt-0.5">
                           {truncate(payloadDisplay.detail, 80)}
                         </div>
                       )}
@@ -108,10 +108,10 @@ export function ActionTable({ actions, onEdit, onApprove, onSkip }: ActionTableP
                   </span>
                 </td>
                 <td className="px-4 py-4">
-                  <span className="text-sm text-gray-600 capitalize">{action.source_type}</span>
+                  <span className="text-sm text-muted-foreground capitalize">{action.source_type}</span>
                 </td>
                 <td className="px-4 py-4">
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-muted-foreground">
                     {format(new Date(action.created_at), 'MMM d, h:mm a')}
                   </span>
                 </td>
@@ -123,7 +123,7 @@ export function ActionTable({ actions, onEdit, onApprove, onSkip }: ActionTableP
                           size="sm"
                           variant="ghost"
                           onClick={() => onEdit(action)}
-                          className="h-8 w-8 p-0 text-gray-500 hover:text-gray-900"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -131,7 +131,7 @@ export function ActionTable({ actions, onEdit, onApprove, onSkip }: ActionTableP
                           size="sm"
                           variant="ghost"
                           onClick={() => onApprove(action.id)}
-                          className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
                         >
                           <Check className="h-4 w-4" />
                         </Button>
@@ -139,7 +139,7 @@ export function ActionTable({ actions, onEdit, onApprove, onSkip }: ActionTableP
                           size="sm"
                           variant="ghost"
                           onClick={() => onSkip(action.id)}
-                          className="h-8 w-8 p-0 text-gray-500 hover:text-gray-900"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                         >
                           <X className="h-4 w-4" />
                         </Button>

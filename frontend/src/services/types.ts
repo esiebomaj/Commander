@@ -76,3 +76,31 @@ export interface ProcessTranscriptResponse {
   actions_created: number
   message: string
 }
+
+// Push Notification Types
+export interface PushStatus {
+  enabled: boolean
+  subscription_count: number
+}
+
+export interface VapidPublicKeyResponse {
+  public_key: string
+}
+
+export interface PushSubscribeRequest {
+  endpoint: string
+  keys: Record<string, string>
+}
+
+export interface PushSubscribeResponse {
+  success: boolean
+  message: string
+}
+
+export interface PushTestResponse {
+  success: boolean
+  message: string
+  sent: number
+  failed: number
+  removed: number
+}

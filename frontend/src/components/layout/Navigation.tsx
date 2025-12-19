@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Inbox, Plug } from 'lucide-react'
+import { Inbox, Plug, Settings } from 'lucide-react'
 
 export function Navigation() {
   const location = useLocation()
@@ -10,10 +10,11 @@ export function Navigation() {
   const tabs = [
     { value: 'actions', label: 'Actions', icon: Inbox },
     { value: 'integrations', label: 'Integrations', icon: Plug },
+    { value: 'settings', label: 'Settings', icon: Settings },
   ]
   
   return (
-    <div className="h-11 border-b border-gray-200 bg-white px-6 flex items-center gap-6">
+    <div className="h-11 border-b border-border bg-card px-6 flex items-center gap-6">
       {tabs.map((tab) => {
         const Icon = tab.icon
         const isActive = currentTab === tab.value
@@ -25,8 +26,8 @@ export function Navigation() {
               flex items-center gap-2 h-full text-sm font-medium transition-colors
               border-b-2 -mb-[1px]
               ${isActive 
-                ? 'border-black text-black' 
-                : 'border-transparent text-gray-500 hover:text-black'
+                ? 'border-foreground text-foreground' 
+                : 'border-transparent text-muted-foreground hover:text-foreground'
               }
             `}
           >

@@ -7,7 +7,7 @@ export function Layout() {
   const { pendingCount } = useNewActions()
   
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="min-h-screen bg-background">
       <Header pendingCount={pendingCount} />
       <Navigation />
       <main className="max-w-5xl mx-auto px-6 py-8">

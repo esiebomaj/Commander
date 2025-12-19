@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from .models import ListActionsResponse, RunResponse
 from .orchestrator import (
@@ -19,6 +20,9 @@ from .storage import update_action_payload
 from .integrations.gmail.routes import router as gmail_router
 from .integrations.google_calendar.routes import router as calendar_router
 from .integrations.google_drive.routes import router as drive_router
+
+# Import push notification module
+from . import push
 
 
 app = FastAPI(title="Commander (MVP)", version="0.1.0")
@@ -82,5 +86,89 @@ def update_action(action_id: int, payload: dict):
         if not updated:
             raise HTTPException(status_code=404, detail=f"Action {action_id} not found")
         return updated
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --------------------------------------------------------------------------- #
+# Push Notification Endpoints
+# --------------------------------------------------------------------------- #
+
+class PushSubscription(BaseModel):
+    """Push subscription from browser."""
+    endpoint: str
+    keys: dict
+
+
+class PushUnsubscribe(BaseModel):
+    """Unsubscribe request."""
+    endpoint: str
+
+
+class TestNotification(BaseModel):
+    """Test notification request."""
+    title: str = "Test Notification"
+    body: str = "This is a test notification from Commander."
+
+
+@app.get("/push/vapid-public-key")
+def get_vapid_public_key():
+    """Get the VAPID public key for push subscription."""
+    try:
+        public_key = push.get_public_key()
+        return {"public_key": public_key}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/push/subscribe")
+def push_subscribe(subscription: PushSubscription):
+    """Subscribe to push notifications."""
+    try:
+        push.subscribe(subscription.model_dump())
+        return {"success": True, "message": "Subscribed to push notifications"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/push/unsubscribe")
+def push_unsubscribe(data: PushUnsubscribe):
+    """Unsubscribe from push notifications."""
+    try:
+        removed = push.unsubscribe(data.endpoint)
+        if removed:
+            return {"success": True, "message": "Unsubscribed from push notifications"}
+        return {"success": False, "message": "Subscription not found"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/push/test")
+def push_test(data: TestNotification):
+    """Send a test push notification (for development)."""
+    try:
+        result = push.send_notification(
+            title=data.title,
+            body=data.body,
+            url="/actions?edit=18",
+        )
+        return {
+            "success": True,
+            "message": f"Sent {result['sent']} notification(s)",
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/push/status")
+def push_status():
+    """Get push notification status."""
+    try:
+        count = push.get_subscription_count()
+        return {
+            "enabled": count > 0,
+            "subscription_count": count,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

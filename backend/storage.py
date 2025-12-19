@@ -235,24 +235,44 @@ def get_next_action_id() -> int:
     return nid
 
 
-def save_action(action: ProposedAction) -> ProposedAction:
+def save_action(action: ProposedAction, notify: bool = True) -> ProposedAction:
     """
     Save an action. Updates if exists (by id), otherwise appends.
     Returns the saved action.
+    
+    Args:
+        action: The action to save
+        notify: If True, send push notification for new actions (default True)
     """
     print(f"Saving action: {action.type}")
     actions = _load_actions_raw()
     
     # Check for existing by id
+    is_new = True
     for i, act in enumerate(actions):
         if act["id"] == action.id:
             actions[i] = _action_to_dict(action)
             _save_actions_raw(actions)
+            is_new = False
             return action
     
     # Append new
     actions.append(_action_to_dict(action))
     _save_actions_raw(actions)
+    
+    # Send push notification for new actions
+    if is_new and notify:
+        try:
+            from .push import notify_new_action
+            notify_new_action(
+                action_type=action.type.value,
+                summary=action.summary,
+                action_id=action.id,
+            )
+        except Exception as e:
+            # Don't fail action save if push notification fails
+            print(f"Failed to send push notification: {e}")
+    
     return action
 
 

@@ -20,13 +20,13 @@ export function ActionFilters({
 }: ActionFiltersProps) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex items-center gap-2 text-sm text-gray-500">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Filter className="h-4 w-4" />
         <span>Filter</span>
       </div>
       
       <Select value={statusFilter} onValueChange={onStatusChange}>
-        <SelectTrigger className="w-[140px] h-9 text-sm bg-white border-gray-200">
+        <SelectTrigger className="w-[140px] h-9 text-sm bg-card border-border">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
@@ -39,7 +39,7 @@ export function ActionFilters({
       </Select>
       
       <Select value={typeFilter} onValueChange={onTypeChange}>
-        <SelectTrigger className="w-[160px] h-9 text-sm bg-white border-gray-200">
+        <SelectTrigger className="w-[160px] h-9 text-sm bg-card border-border">
           <SelectValue placeholder="Type" />
         </SelectTrigger>
         <SelectContent>
@@ -52,7 +52,7 @@ export function ActionFilters({
       </Select>
       
       <Select value={sourceFilter} onValueChange={onSourceChange}>
-        <SelectTrigger className="w-[140px] h-9 text-sm bg-white border-gray-200">
+        <SelectTrigger className="w-[140px] h-9 text-sm bg-card border-border">
           <SelectValue placeholder="Source" />
         </SelectTrigger>
         <SelectContent>
