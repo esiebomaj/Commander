@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="")
     llm_model: str = Field(default="gpt-4o-mini")
     
+    # Embedding Settings
+    embedding_model: str = Field(default="text-embedding-3-small")
+    max_embedding_tokens: int = Field(default=8000)
+    
+    # Qdrant Settings
+    qdrant_url: str = Field(default="")
+    qdrant_api_key: str = Field(default="")
+    qdrant_collection_name: str = Field(default="commander_contexts")
+    
     # API Settings
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8000)
@@ -48,6 +57,12 @@ class Settings(BaseSettings):
         
         if not self.openai_api_key:
             issues.append("OPENAI_API_KEY is not set")
+        
+        if not self.qdrant_url:
+            issues.append("QDRANT_URL is not set")
+        
+        if not self.qdrant_api_key:
+            issues.append("QDRANT_API_KEY is not set")
         
         if not self.gmail_credentials_path.exists():
             issues.append(f"Gmail credentials file not found: {self.gmail_credentials_path}")

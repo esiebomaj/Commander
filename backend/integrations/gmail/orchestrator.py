@@ -16,14 +16,8 @@ from typing_extensions import Dict
 
 from ...adapters import email_to_context
 from ...models import ContextItem, EmailMessage, ProposedAction
-from ...storage import (
-    context_exists,
-    get_next_action_id,
-    get_recent_history,
-    mark_context_processed,
-    save_action,
-    save_context,
-)
+from ...context_storage import get_relevant_history, get_vector_store, save_context
+from ...storage import get_next_action_id, save_action
 from .client import GmailIntegration, get_gmail
 
 
@@ -127,6 +121,7 @@ def _process_emails(
         List of saved ContextItem objects
     """
     saved_contexts: List[ContextItem] = []
+    store = get_vector_store()
     print(f"Processing {len(emails)} emails")
     for email in emails:
 
@@ -135,22 +130,27 @@ def _process_emails(
         context = email_to_context(email)
         
         # Check for duplicate
-        if context_exists(context.source_id, context.source_type):
+        if store.check_exist(context.source_id, context.source_type):
             print(f"Skipping duplicate email: {email.subject[:50]}...")
             continue
         
         if generate_actions and "SENT" not in email.labels: # dont generate actions for sent emails
-            # Get recent history for LLM context
-            history = get_recent_history(
-                limit=history_limit,
-                exclude_context_id=context.id,
+            # Get relevant history for LLM context (semantic + recent)
+            similar_history, recent_history = get_relevant_history(
+                current_context=context,
+                semantic_limit=history_limit // 2,
+                recent_limit=history_limit // 2,
             )
             
             # Get LLM decisions
             # Local import avoids circular dependency when tools load Gmail integration
             from ...llm import decide_actions_for_context
 
-            actions = decide_actions_for_context(context, history=history)
+            actions = decide_actions_for_context(
+                context,
+                similar_history=similar_history,
+                recent_history=recent_history
+            )
             
             # Save actions
             for action_type, payload, confidence in actions:
@@ -168,13 +168,12 @@ def _process_emails(
                 save_action(proposed)
         
 
-        # Save context
+        # Save context (with embedding)
         save_context(context)
         saved_contexts.append(context)
 
-
         # Mark as processed
-        mark_context_processed(context.id)
+        store.update_processed(context.id)
     print(f"Saved {len(saved_contexts)} contexts")
     return saved_contexts
 

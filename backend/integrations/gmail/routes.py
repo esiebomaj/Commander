@@ -3,6 +3,7 @@ Gmail integration API routes.
 """
 from __future__ import annotations
 
+import traceback
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -173,6 +174,7 @@ def gmail_webhook(payload: GmailWebhookPayload):
         
         # Decode the Pub/Sub message
         message_data = payload.message.get("data", "")
+        print("New email notification received")
         if message_data:
             decoded = base64.urlsafe_b64decode(message_data).decode("utf-8")
             notification = json.loads(decoded)
@@ -192,6 +194,10 @@ def gmail_webhook(payload: GmailWebhookPayload):
     except Exception as e:
         # Always return 200 to acknowledge receipt (prevents retries)
         print(f"Error processing webhook: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error processing webhook")
+
+
+
 
 

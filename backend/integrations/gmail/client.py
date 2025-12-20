@@ -151,7 +151,7 @@ class GmailIntegration(GoogleOAuthClient):
                 id=msg_id,
                 format="full",
             ).execute()
-            
+
             return self._parse_message(msg)
         except HttpError as e:
             print(f"Error fetching email {msg_id}: {e}")

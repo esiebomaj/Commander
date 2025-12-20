@@ -84,12 +84,22 @@ class GoogleOAuthClient(ABC):
     def is_connected(self) -> bool:
         """Check if the integration is connected and has valid credentials."""
         if not has_token(self.SERVICE_NAME):
+            print(f"[{self.SERVICE_NAME}] No token found")
             return False
         
         try:
             creds = self._get_credentials()
-            return creds is not None and creds.valid
-        except Exception:
+            if creds is None:
+                print(f"[{self.SERVICE_NAME}] Failed to get credentials")
+                return False
+            if not creds.valid:
+                print(f"[{self.SERVICE_NAME}] Credentials not valid - expired: {creds.expired}, token exists: {creds.token is not None}")
+                return False
+
+            return True
+            
+        except Exception as e:
+            print(f"[{self.SERVICE_NAME}] Exception checking connection: {e}")
             return False
     
     @abstractmethod
@@ -150,7 +160,7 @@ class GoogleOAuthClient(ABC):
             self._flow.fetch_token(code=authorization_code)
             creds = self._flow.credentials
             
-            # Save credentials
+            # Save credentials with expiry
             save_token(self.SERVICE_NAME, {
                 "token": creds.token,
                 "refresh_token": creds.refresh_token,
@@ -158,6 +168,7 @@ class GoogleOAuthClient(ABC):
                 "client_id": creds.client_id,
                 "client_secret": creds.client_secret,
                 "scopes": list(creds.scopes) if creds.scopes else self.SCOPES,
+                "expiry": creds.expiry.isoformat() if creds.expiry else None,
             })
             
             self._credentials = creds
@@ -188,7 +199,7 @@ class GoogleOAuthClient(ABC):
             )
             creds = flow.run_local_server(port=port)
             
-            # Save credentials
+            # Save credentials with expiry
             save_token(self.SERVICE_NAME, {
                 "token": creds.token,
                 "refresh_token": creds.refresh_token,
@@ -196,6 +207,7 @@ class GoogleOAuthClient(ABC):
                 "client_id": creds.client_id,
                 "client_secret": creds.client_secret,
                 "scopes": list(creds.scopes) if creds.scopes else self.SCOPES,
+                "expiry": creds.expiry.isoformat() if creds.expiry else None,
             })
             
             self._credentials = creds
@@ -224,6 +236,8 @@ class GoogleOAuthClient(ABC):
     
     def _get_credentials(self) -> Optional[Credentials]:
         """Get or refresh credentials from token storage."""
+        from datetime import datetime
+        
         if self._credentials and self._credentials.valid:
             return self._credentials
         
@@ -232,6 +246,11 @@ class GoogleOAuthClient(ABC):
             return None
         
         try:
+            # Parse expiry if present
+            expiry = None
+            if token_data.get("expiry"):
+                expiry = datetime.fromisoformat(token_data["expiry"])
+            
             creds = Credentials(
                 token=token_data.get("token"),
                 refresh_token=token_data.get("refresh_token"),
@@ -239,12 +258,13 @@ class GoogleOAuthClient(ABC):
                 client_id=token_data.get("client_id"),
                 client_secret=token_data.get("client_secret"),
                 scopes=token_data.get("scopes", self.SCOPES),
+                expiry=expiry,
             )
             
-            # Refresh if expired
-            if creds.expired and creds.refresh_token:
+            # Refresh if expired or token is invalid
+            if (creds.expired or not creds.valid) and creds.refresh_token:
                 creds.refresh(Request())
-                # Save refreshed token
+                # Save refreshed token with expiry
                 save_token(self.SERVICE_NAME, {
                     "token": creds.token,
                     "refresh_token": creds.refresh_token,
@@ -252,6 +272,7 @@ class GoogleOAuthClient(ABC):
                     "client_id": creds.client_id,
                     "client_secret": creds.client_secret,
                     "scopes": list(creds.scopes) if creds.scopes else self.SCOPES,
+                    "expiry": creds.expiry.isoformat() if creds.expiry else None,
                 })
             
             self._credentials = creds
@@ -279,5 +300,4 @@ class GoogleOAuthClient(ABC):
                 "Not authenticated. Call get_auth_url() and complete_auth() first."
             )
         
-        self._service = build(self.API_NAME, self.API_VERSION, credentials=creds)
-        return self._service
+        return build(self.API_NAME, self.API_VERSION, credentials=creds)

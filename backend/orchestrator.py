@@ -3,6 +3,11 @@ from __future__ import annotations
 from typing import List, Literal, Optional
 
 from .adapters import email_to_context, meeting_to_context, slack_to_context
+from .context_storage import (
+    get_relevant_history,
+    get_vector_store,
+    save_context,
+)
 from .executors import execute_action
 from .gmail_mock import fetch_recent_emails
 from .meeting_mock import fetch_recent_meeting_transcripts
@@ -10,14 +15,10 @@ from .slack_mock import fetch_recent_slack_messages
 from .llm import decide_actions_for_context
 from .models import ActionType, ContextItem, ProposedAction
 from .storage import (
-    context_exists,
     get_action,
     get_next_action_id,
-    get_recent_history,
     list_actions,
-    mark_context_processed,
     save_action,
-    save_context,
     update_action_status,
 )
 
@@ -45,24 +46,30 @@ def _process_contexts(
         List of newly created proposed actions
     """
     created: List[ProposedAction] = []
+    store = get_vector_store()
 
     for context in contexts:
         # Check for duplicate (by source_id from the source system)
-        if context_exists(context.source_id, context.source_type):
+        if store.check_exist(context.source_id, context.source_type):
             print(f"Skipping duplicate context: {context.source_id}")
             continue
         
-        # Save the context first
+        # Save the context first 
         save_context(context)
         
-        # Get recent history for LLM context
-        history = get_recent_history(
-            limit=history_limit,
-            exclude_context_id=context.id,
+        # Get relevant history for LLM context (semantic + recent)
+        similar_history, recent_history = get_relevant_history(
+            current_context=context,
+            semantic_limit=history_limit // 2,
+            recent_limit=history_limit // 2,
         )
         
         # Get LLM decisions with history
-        actions = decide_actions_for_context(context, history=history)
+        actions = decide_actions_for_context(
+            context, 
+            similar_history=similar_history,
+            recent_history=recent_history
+        )
         
         # Create and save proposed actions
         for action_type, payload, confidence in actions:
@@ -81,7 +88,7 @@ def _process_contexts(
             created.append(proposed)
         
         # Mark context as processed
-        mark_context_processed(context.id)
+        store.update_processed(context.id)
 
     return created
 

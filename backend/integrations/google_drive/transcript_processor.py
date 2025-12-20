@@ -25,14 +25,8 @@ from ...models import (
     ProposedAction,
     SourceType,
 )
-from ...storage import (
-    context_exists,
-    get_next_action_id,
-    get_recent_history,
-    mark_context_processed,
-    save_action,
-    save_context,
-)
+from ...storage import get_next_action_id, save_action
+from ...context_storage import get_relevant_history, get_vector_store, save_context
 from ...adapters import meeting_to_context
 from ...llm import decide_actions_for_context
 from .client import get_connected_drive
@@ -195,7 +189,8 @@ def process_new_transcript(
         Tuple of (ContextItem, List[ProposedAction]) or None if skipped/error
     """
     # Check for duplicate
-    if skip_if_exists and context_exists(file_id, SourceType.MEETING_TRANSCRIPT):
+    store = get_vector_store()
+    if skip_if_exists and store.check_exist(file_id, SourceType.MEETING_TRANSCRIPT):
         print(f"Skipping already processed transcript: {file_id}")
         return None
     
@@ -264,15 +259,23 @@ def process_new_transcript(
     # Convert to ContextItem using existing adapter
     context = meeting_to_context(meeting)
     
-    # Save the context
+    # Save the context (with embedding)
     save_context(context)
     print(f"Saved context for transcript: {context.id}")
     
-    # Get recent history for action decision
-    history = get_recent_history(limit=10, exclude_context_id=context.id)
+    # Get relevant history for action decision (semantic + recent)
+    similar_history, recent_history = get_relevant_history(
+        current_context=context,
+        semantic_limit=5,
+        recent_limit=5,
+    )
     
     # Decide actions
-    actions_data = decide_actions_for_context(context, history=history)
+    actions_data = decide_actions_for_context(
+        context,
+        similar_history=similar_history,
+        recent_history=recent_history
+    )
     
     # Create and save proposed actions
     created_actions: List[ProposedAction] = []
@@ -293,7 +296,7 @@ def process_new_transcript(
         print(f"Created action: {action_type.value} (confidence: {confidence:.2f})")
     
     # Mark context as processed
-    mark_context_processed(context.id)
+    store.update_processed(context.id)
     
     return context, created_actions
 

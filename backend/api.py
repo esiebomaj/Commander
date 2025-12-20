@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from .context_storage import search_similar_contexts
+from .init_qdrant import init_qdrant
 from .models import ListActionsResponse, RunResponse
 from .orchestrator import (
     approve_action,
@@ -25,7 +28,14 @@ from .integrations.google_drive.routes import router as drive_router
 from . import push
 
 
-app = FastAPI(title="Commander (MVP)", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize services on startup."""
+    init_qdrant()
+    yield
+
+
+app = FastAPI(title="Commander (MVP)", version="0.1.0", lifespan=lifespan)
 
 # Add CORS middleware to allow frontend to communicate with backend
 app.add_middleware(
@@ -88,6 +98,67 @@ def update_action(action_id: int, payload: dict):
         return updated
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --------------------------------------------------------------------------- #
+# Context & Similarity Search Endpoints
+# --------------------------------------------------------------------------- #
+
+class SimilaritySearchRequest(BaseModel):
+    """Request for similarity search."""
+    text: str
+    limit: int = 10
+
+
+class SimilaritySearchResult(BaseModel):
+    """Result for similarity search."""
+    id: str
+    source_type: str
+    sender: Optional[str]
+    summary: Optional[str]
+    context_text: str
+    timestamp: str
+    similarity_score: float
+
+
+class SimilaritySearchResponse(BaseModel):
+    """Response for similarity search."""
+    results: list[SimilaritySearchResult]
+    count: int
+
+
+@app.post("/api/contexts/similar", response_model=SimilaritySearchResponse)
+def search_similar(request: SimilaritySearchRequest):
+    """
+    Search for contexts similar to the given text.
+    
+    Uses semantic similarity search powered by embeddings and Qdrant.
+    """
+    try:
+        results = search_similar_contexts(
+            query_text=request.text,
+            limit=request.limit,
+        )
+        
+        search_results = [
+            SimilaritySearchResult(
+                id=ctx.id,
+                source_type=ctx.source_type.value,
+                sender=ctx.sender,
+                summary=ctx.summary,
+                context_text=ctx.context_text[:500],  # Truncate for response
+                timestamp=ctx.timestamp.isoformat(),
+                similarity_score=score,
+            )
+            for ctx, score in results
+        ]
+        
+        return SimilaritySearchResponse(
+            results=search_results,
+            count=len(search_results),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Similarity search failed: {str(e)}")
 
 
 # --------------------------------------------------------------------------- #

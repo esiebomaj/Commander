@@ -44,31 +44,60 @@ Guidelines:
 # --------------------------------------------------------------------------- #
 
 def _build_history_section(
-    history: List[Tuple[ContextItem, List[ProposedAction]]]
+    similar_history: List[Tuple[ContextItem, List[ProposedAction]]],
+    recent_history: List[Tuple[ContextItem, List[ProposedAction]]]
 ) -> str:
-    """Build the history section of the prompt."""
-    if not history:
+    """Build the history section of the prompt with separate similar and recent contexts."""
+    if not similar_history and not recent_history:
         return ""
     
-    lines = ["", "=== RECENT HISTORY (for context) ===", ""]
+    lines = []
     
-    for ctx, actions in history:
-        lines.append(ctx.context_text)
-        print(ctx.context_text[:200])
-        print("--------------------------------")
-        
-        if actions:
-            lines.append("----- ACTIONS TAKEN -----")
-            for action in actions:
-                lines.append(action.to_prompt_string())
-                print(action.to_prompt_string())
-                print("--------------------------------")
-
-        else:
-            lines.append("----- ACTIONS TAKEN -----")
-            lines.append("None")
-        
+    # Related/Similar contexts section
+    if similar_history:
+        lines.extend(["", "=== RELATED CONTEXT (topically similar) ===", ""])
+        lines.append("Background information related to this topic:")
         lines.append("")
+        
+        for ctx, actions in similar_history:
+            lines.append(ctx.context_text)
+            print("[SIMILAR]", ctx.context_text[:200])
+            print("--------------------------------")
+            
+            if actions:
+                lines.append("----- ACTIONS TAKEN -----")
+                for action in actions:
+                    lines.append(action.to_prompt_string())
+                    print(action.to_prompt_string())
+                    print("--------------------------------")
+            else:
+                lines.append("----- ACTIONS TAKEN -----")
+                lines.append("None")
+            
+            lines.append("")
+    
+    # Recent activity section
+    if recent_history:
+        lines.extend(["=== RECENT ACTIVITY (what happened lately) ===", ""])
+        lines.append("Recent events to stay aware of current state:")
+        lines.append("")
+        
+        for ctx, actions in recent_history:
+            lines.append(ctx.context_text)
+            print("[RECENT]", ctx.context_text[:200])
+            print("--------------------------------")
+            
+            if actions:
+                lines.append("----- ACTIONS TAKEN -----")
+                for action in actions:
+                    lines.append(action.to_prompt_string())
+                    print(action.to_prompt_string())
+                    print("--------------------------------")
+            else:
+                lines.append("----- ACTIONS TAKEN -----")
+                lines.append("None")
+            
+            lines.append("")
     
     lines.append("=== END HISTORY ===")
     lines.append("")
@@ -78,13 +107,17 @@ def _build_history_section(
 
 def _build_user_prompt(
     context: ContextItem,
-    history: Optional[List[Tuple[ContextItem, List[ProposedAction]]]] = None,
+    similar_history: List[Tuple[ContextItem, List[ProposedAction]]],
+    recent_history: List[Tuple[ContextItem, List[ProposedAction]]],
 ) -> str:
     """Build the user prompt with current context and optional history."""
     parts = []
     
-    if history:
-        parts.append(_build_history_section(history))
+    if similar_history or recent_history:
+        parts.append(_build_history_section(
+            similar_history,
+            recent_history
+        ))
     
     parts.append("=== CURRENT INPUT (decide actions for this) ===")
     parts.append("")
@@ -117,7 +150,8 @@ def _parse_tool_call(tool_call: Dict[str, Any]) -> Tuple[ActionType, Dict[str, A
 
 def decide_actions_for_context(
     context: ContextItem,
-    history: Optional[List[Tuple[ContextItem, List[ProposedAction]]]] = None,
+    similar_history: Optional[List[Tuple[ContextItem, List[ProposedAction]]]] = None,
+    recent_history: Optional[List[Tuple[ContextItem, List[ProposedAction]]]] = None,
     model: str | None = None,
 ) -> List[Tuple[ActionType, Dict[str, Any], float]]:
     """
@@ -125,7 +159,8 @@ def decide_actions_for_context(
     
     Args:
         context: The current context item to process
-        history: Optional list of (context, actions) tuples for historical context
+        similar_history: Optional list of semantically similar (context, actions) tuples
+        recent_history: Optional list of recent chronological (context, actions) tuples
         model: The OpenAI model to use
     
     Returns:
@@ -135,11 +170,11 @@ def decide_actions_for_context(
     llm = ChatOpenAI(model=model, temperature=0.2, api_key=settings.openai_api_key)
     llm_with_tools = llm.bind_tools(ALL_TOOLS)
 
-    print(_build_user_prompt(context, history))
+    user_prompt = _build_user_prompt(context, similar_history, recent_history)
     
     messages = [
         SystemMessage(content=_SYSTEM_PROMPT),
-        HumanMessage(content=_build_user_prompt(context, history)),
+        HumanMessage(content=user_prompt),
     ]
     
     response = llm_with_tools.invoke(messages)
