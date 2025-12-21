@@ -6,6 +6,7 @@ for all Google API integrations (Gmail, Calendar, Drive, etc.).
 """
 from __future__ import annotations
 
+import json
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -15,6 +16,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
+from ...config import settings
 from ..token_storage import (
     get_token,
     save_token,
@@ -55,23 +57,14 @@ class GoogleOAuthClient(ABC):
     API_VERSION: str
     SCOPES: List[str]
     
-    def __init__(self, credentials_file: Union[str, Path]):
+    def __init__(self):
         """
         Initialize the Google OAuth client.
         
-        Args:
-            credentials_file: Path to the OAuth credentials JSON file
-                downloaded from Google Cloud Console.
-        
-        Raises:
-            FileNotFoundError: If credentials file doesn't exist
+        Gets credentials from settings.google_credentials_dict.
+        Credentials are validated at startup, so they're guaranteed to be available.
         """
-        self._credentials_file = Path(credentials_file)
-        if not self._credentials_file.exists():
-            raise FileNotFoundError(
-                f"Google credentials file not found at {self._credentials_file}. "
-                "Please download OAuth credentials from Google Cloud Console."
-            )
+        self._credentials_dict = settings.google_credentials_dict
         
         self._service = None
         self._credentials: Optional[Credentials] = None
@@ -130,8 +123,8 @@ class GoogleOAuthClient(ABC):
         Returns:
             The authorization URL for the user to visit
         """
-        self._flow = InstalledAppFlow.from_client_secrets_file(
-            str(self._credentials_file),
+        self._flow = InstalledAppFlow.from_client_config(
+            self._credentials_dict,
             scopes=self.SCOPES,
             redirect_uri=redirect_uri,
         )
@@ -193,8 +186,8 @@ class GoogleOAuthClient(ABC):
             True if authentication was successful
         """
         try:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(self._credentials_file),
+            flow = InstalledAppFlow.from_client_config(
+                self._credentials_dict,
                 scopes=self.SCOPES,
             )
             creds = flow.run_local_server(port=port)

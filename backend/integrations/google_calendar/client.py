@@ -23,13 +23,6 @@ from ..token_storage import delete_token
 
 
 # --------------------------------------------------------------------------- #
-# Configuration
-# --------------------------------------------------------------------------- #
-
-DEFAULT_CREDENTIALS_FILE = settings.gmail_credentials_path
-
-
-# --------------------------------------------------------------------------- #
 # Google Calendar Integration Class
 # --------------------------------------------------------------------------- #
 
@@ -207,32 +200,26 @@ class CalendarIntegration(GoogleOAuthClient):
 _calendar_instance: Optional[CalendarIntegration] = None
 
 
-def get_calendar(credentials_file: Union[str, Path] = DEFAULT_CREDENTIALS_FILE) -> CalendarIntegration:
+def get_calendar() -> CalendarIntegration:
     """
     Get the global Calendar integration instance.
     
-    Args:
-        credentials_file: Path to credentials file. Only used when
-                         creating a new instance (first call).
-                         Defaults to 'data/gmail_credentials.json'.
+    Credentials are loaded from settings automatically.
     """
     global _calendar_instance
     if _calendar_instance is None:
-        _calendar_instance = CalendarIntegration(credentials_file=credentials_file)
+        _calendar_instance = CalendarIntegration()
     return _calendar_instance
 
 
 def get_calendar_status() -> Dict[str, Any]:
     """Get the current Calendar connection status."""
-    try:
-        calendar = get_calendar()
-        connected = calendar.is_connected()
-        return {
-            "connected": connected,
-            "email": calendar.get_user_email() if connected else None,
-        }
-    except FileNotFoundError:
-        return {"connected": False, "email": None}
+    calendar = get_calendar()
+    connected = calendar.is_connected()
+    return {
+        "connected": connected,
+        "email": calendar.get_user_email() if connected else None,
+    }
 
 
 def disconnect_calendar() -> bool:

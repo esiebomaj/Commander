@@ -33,12 +33,9 @@ class CalendarStatusResponse(BaseModel):
 @router.get("/status", response_model=CalendarStatusResponse)
 def calendar_status():
     """Get Google Calendar connection status."""
-    try:
-        from . import get_calendar_status
-        status = get_calendar_status()
-        return CalendarStatusResponse(**status)
-    except ImportError:
-        raise HTTPException(status_code=500, detail="Google Calendar integration not available")
+    from . import get_calendar_status
+    status = get_calendar_status()
+    return CalendarStatusResponse(**status)
 
 
 @router.get("/auth-url", response_model=CalendarAuthUrlResponse)
@@ -49,18 +46,13 @@ def calendar_auth_url(redirect_uri: str = Query(default="urn:ietf:wg:oauth:2.0:o
     For web apps, provide your callback URL as redirect_uri.
     For CLI/desktop, use the default which shows a code to copy.
     """
-    try:
-        from . import get_calendar
-        calendar = get_calendar()
-        auth_url = calendar.get_auth_url(redirect_uri=redirect_uri)
-        return CalendarAuthUrlResponse(
-            auth_url=auth_url,
-            instructions="Visit the URL to authorize, then call /integrations/calendar/auth?code=YOUR_CODE (GET)."
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating auth URL: {str(e)}")
+    from . import get_calendar
+    calendar = get_calendar()
+    auth_url = calendar.get_auth_url(redirect_uri=redirect_uri)
+    return CalendarAuthUrlResponse(
+        auth_url=auth_url,
+        instructions="Visit the URL to authorize, then call /integrations/calendar/auth?code=YOUR_CODE (GET)."
+    )
 
 
 @router.get("/auth", response_model=CalendarStatusResponse)
@@ -82,14 +74,6 @@ def calendar_auth(code: str = Query(..., description="Authorization code returne
 @router.post("/disconnect", response_model=CalendarStatusResponse)
 def calendar_disconnect():
     """Disconnect Google Calendar integration."""
-    try:
-        from . import disconnect_calendar
-        disconnect_calendar()
-        return CalendarStatusResponse(connected=False, email=None)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error disconnecting: {str(e)}")
-
-
-
-
-
+    from . import disconnect_calendar
+    disconnect_calendar()
+    return CalendarStatusResponse(connected=False, email=None)

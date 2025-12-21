@@ -26,8 +26,6 @@ from ..token_storage import get_token, save_token, delete_token
 # Configuration
 # --------------------------------------------------------------------------- #
 
-DEFAULT_CREDENTIALS_FILE = settings.gmail_credentials_path
-
 # Meet Recordings folder name (Google creates this automatically)
 MEET_RECORDINGS_FOLDER_NAME = "Meet Recordings"
 
@@ -314,18 +312,15 @@ class DriveIntegration(GoogleOAuthClient):
 _drive_instance: Optional[DriveIntegration] = None
 
 
-def get_drive(credentials_file: Union[str, Path] = DEFAULT_CREDENTIALS_FILE) -> DriveIntegration:
+def get_drive() -> DriveIntegration:
     """
     Get the global Drive integration instance.
     
-    Args:
-        credentials_file: Path to credentials file. Only used when
-                         creating a new instance (first call).
-                         Defaults to 'data/gmail_credentials.json'.
+    Credentials are loaded from settings automatically.
     """
     global _drive_instance
     if _drive_instance is None:
-        _drive_instance = DriveIntegration(credentials_file=credentials_file)
+        _drive_instance = DriveIntegration()
     return _drive_instance
 
 
@@ -335,37 +330,25 @@ def get_connected_drive() -> Optional[DriveIntegration]:
     
     This is a convenience helper to avoid repetitive connection checks.
     """
-    try:
-        drive = get_drive()
-        if not drive.is_connected():
-            print("Google Drive not connected")
-            return None
-        return drive
-    except FileNotFoundError as e:
-        print(f"Drive credentials not found: {e}")
+    drive = get_drive()
+    if not drive.is_connected():
+        print("Google Drive not connected")
         return None
+    return drive
 
 
 def get_drive_status() -> Dict[str, Any]:
     """Get the current Drive connection status."""
-    try:
-        drive = get_drive()
-        connected = drive.is_connected()
-        webhook_info = drive.get_webhook_info()
-        
-        return {
-            "connected": connected,
-            "email": drive.get_user_email() if connected else None,
-            "webhook_active": webhook_info is not None,
-            "webhook_expiration": webhook_info.get("expiration") if webhook_info else None,
-        }
-    except FileNotFoundError:
-        return {
-            "connected": False,
-            "email": None,
-            "webhook_active": False,
-            "webhook_expiration": None,
-        }
+    drive = get_drive()
+    connected = drive.is_connected()
+    webhook_info = drive.get_webhook_info()
+    
+    return {
+        "connected": connected,
+        "email": drive.get_user_email() if connected else None,
+        "webhook_active": webhook_info is not None,
+        "webhook_expiration": webhook_info.get("expiration") if webhook_info else None,
+    }
 
 
 def disconnect_drive() -> bool:

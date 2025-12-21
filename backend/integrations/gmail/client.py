@@ -27,13 +27,6 @@ from .cleaning import html_to_text, sanitize_body_text
 
 
 # --------------------------------------------------------------------------- #
-# Configuration
-# --------------------------------------------------------------------------- #
-
-DEFAULT_CREDENTIALS_FILE = settings.gmail_credentials_path
-
-
-# --------------------------------------------------------------------------- #
 # Gmail Integration Class
 # --------------------------------------------------------------------------- #
 
@@ -459,16 +452,13 @@ class GmailIntegration(GoogleOAuthClient):
 _gmail_instance: Optional[GmailIntegration] = None
 
 
-def get_gmail(credentials_file: Union[str, Path] = DEFAULT_CREDENTIALS_FILE) -> GmailIntegration:
+def get_gmail() -> GmailIntegration:
     """
     Get the global Gmail integration instance.
     
-    Args:
-        credentials_file: Path to credentials file. Only used when
-                         creating a new instance (first call).
-                         Defaults to 'data/gmail_credentials.json'.
+    Credentials are loaded from settings automatically.
     """
     global _gmail_instance
     if _gmail_instance is None:
-        _gmail_instance = GmailIntegration(credentials_file=credentials_file)
+        _gmail_instance = GmailIntegration()
     return _gmail_instance

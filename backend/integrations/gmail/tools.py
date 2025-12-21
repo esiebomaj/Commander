@@ -54,10 +54,7 @@ def gmail_send_email(
     **kwargs,
 ) -> Dict[str, Any]:
     """Send an email via Gmail. Use for replies or new emails when a response is clearly needed."""
-    try:
-        gmail = get_gmail()
-    except FileNotFoundError:
-        return {"success": False, "error": "Gmail credentials not configured"}
+    gmail = get_gmail()
     
     if not gmail.is_connected():
         return {"success": False, "error": "Gmail is not connected. Please authenticate first."}
@@ -89,10 +86,7 @@ def gmail_create_draft(
     **kwargs,
 ) -> Dict[str, Any]:
     """Create an email draft in Gmail. Use when you want to prepare a response for user review before sending."""
-    try:
-        gmail = get_gmail()
-    except FileNotFoundError:
-        return {"success": False, "error": "Gmail credentials not configured"}
+    gmail = get_gmail()
     
     if not gmail.is_connected():
         return {"success": False, "error": "Gmail is not connected. Please authenticate first."}

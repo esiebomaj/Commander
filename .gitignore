@@ -1,6 +1,11 @@
 # Data storage (JSON files with runtime data)
 data/
 
+# Credentials (extra safety)
+*credentials*.json
+*token*.json
+backend/data/
+
 # Python
 __pycache__/
 *.py[cod]

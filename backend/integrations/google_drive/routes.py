@@ -67,12 +67,9 @@ class ListTranscriptsResponse(BaseModel):
 @router.get("/integrations/drive/status", response_model=DriveStatusResponse)
 def drive_status():
     """Get Google Drive connection status."""
-    try:
-        from . import get_drive_status
-        status = get_drive_status()
-        return DriveStatusResponse(**status)
-    except ImportError:
-        raise HTTPException(status_code=500, detail="Google Drive integration not available")
+    from . import get_drive_status
+    status = get_drive_status()
+    return DriveStatusResponse(**status)
 
 
 @router.get("/integrations/drive/auth-url", response_model=DriveAuthUrlResponse)
@@ -83,18 +80,13 @@ def drive_auth_url(redirect_uri: str = Query(default="urn:ietf:wg:oauth:2.0:oob"
     For web apps, provide your callback URL as redirect_uri.
     For CLI/desktop, use the default which shows a code to copy.
     """
-    try:
-        from . import get_drive
-        drive = get_drive()
-        auth_url = drive.get_auth_url(redirect_uri=redirect_uri)
-        return DriveAuthUrlResponse(
-            auth_url=auth_url,
-            instructions="Visit the URL to authorize, then call /integrations/drive/auth?code=YOUR_CODE"
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating auth URL: {str(e)}")
+    from . import get_drive
+    drive = get_drive()
+    auth_url = drive.get_auth_url(redirect_uri=redirect_uri)
+    return DriveAuthUrlResponse(
+        auth_url=auth_url,
+        instructions="Visit the URL to authorize, then call /integrations/drive/auth?code=YOUR_CODE"
+    )
 
 
 @router.get("/integrations/drive/auth", response_model=DriveStatusResponse)
@@ -121,12 +113,9 @@ def drive_auth(
 @router.post("/integrations/drive/disconnect", response_model=DriveStatusResponse)
 def drive_disconnect():
     """Disconnect Google Drive integration."""
-    try:
-        from . import disconnect_drive
-        disconnect_drive()
-        return DriveStatusResponse(connected=False, email=None, webhook_active=False)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error disconnecting: {str(e)}")
+    from . import disconnect_drive
+    disconnect_drive()
+    return DriveStatusResponse(connected=False, email=None, webhook_active=False)
 
 
 # --------------------------------------------------------------------------- #

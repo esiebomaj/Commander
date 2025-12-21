@@ -43,10 +43,7 @@ def schedule_meeting(
     **kwargs,
 ) -> Dict[str, Any]:
     """Schedule a meeting on the user's Google Calendar. Use when a call/meeting is requested or complex coordination is needed."""
-    try:
-        calendar = get_calendar()
-    except FileNotFoundError:
-        return {"success": False, "error": "Google Calendar credentials not configured"}
+    calendar = get_calendar()
     
     if not calendar.is_connected():
         return {"success": False, "error": "Google Calendar is not connected. Please authenticate first."}

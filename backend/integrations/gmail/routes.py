@@ -47,12 +47,9 @@ class GmailWebhookPayload(BaseModel):
 @router.get("/status", response_model=GmailStatusResponse)
 def gmail_status():
     """Get Gmail connection status."""
-    try:
-        from . import get_gmail_status
-        status = get_gmail_status()
-        return GmailStatusResponse(**status)
-    except ImportError:
-        raise HTTPException(status_code=500, detail="Gmail integration not available")
+    from . import get_gmail_status
+    status = get_gmail_status()
+    return GmailStatusResponse(**status)
 
 
 @router.get("/auth-url", response_model=GmailAuthUrlResponse)
@@ -63,18 +60,13 @@ def gmail_auth_url(redirect_uri: str = Query(default="urn:ietf:wg:oauth:2.0:oob"
     For web apps, provide your callback URL as redirect_uri.
     For CLI/desktop, use the default which shows a code to copy.
     """
-    try:
-        from . import get_gmail
-        gmail = get_gmail()
-        auth_url = gmail.get_auth_url(redirect_uri=redirect_uri)
-        return GmailAuthUrlResponse(
-            auth_url=auth_url,
-            instructions="Visit the URL to authorize, then call /integrations/gmail/auth?code=YOUR_CODE (GET)."
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating auth URL: {str(e)}")
+    from . import get_gmail
+    gmail = get_gmail()
+    auth_url = gmail.get_auth_url(redirect_uri=redirect_uri)
+    return GmailAuthUrlResponse(
+        auth_url=auth_url,
+        instructions="Visit the URL to authorize, then call /integrations/gmail/auth?code=YOUR_CODE (GET)."
+    )
 
 
 @router.get("/auth", response_model=GmailStatusResponse)
@@ -96,12 +88,9 @@ def gmail_auth(code: str = Query(..., description="Authorization code returned b
 @router.post("/disconnect", response_model=GmailStatusResponse)
 def gmail_disconnect():
     """Disconnect Gmail integration."""
-    try:
-        from . import disconnect_gmail
-        disconnect_gmail()
-        return GmailStatusResponse(connected=False, email=None)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error disconnecting: {str(e)}")
+    from . import disconnect_gmail
+    disconnect_gmail()
+    return GmailStatusResponse(connected=False, email=None)
 
 
 @router.post("/sync", response_model=GmailSyncResponse)

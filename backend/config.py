@@ -3,8 +3,10 @@ Configuration management for Commander backend.
 
 Uses Pydantic Settings for type-safe configuration with .env file support.
 """
+import json
 from pathlib import Path
 from functools import lru_cache
+from typing import Any, Dict, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,7 +26,12 @@ class Settings(BaseSettings):
     
     # Paths
     data_dir: Path = Field(default=_BACKEND_DIR / "data")
-    gmail_credentials_file: Path | None = None
+    
+    # Google Credentials (required)
+    google_credentials_json: str = Field(
+        default="",
+        description="Google OAuth credentials as JSON string"
+    )
     
     # LLM Settings
     openai_api_key: str = Field(default="")
@@ -45,11 +52,24 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False)
     
     @property
-    def gmail_credentials_path(self) -> Path:
-        """Get Gmail credentials file path, defaulting to data_dir if not set."""
-        if self.gmail_credentials_file:
-            return self.gmail_credentials_file
-        return self.data_dir / "gmail_credentials.json"
+    def google_credentials_dict(self) -> Optional[Dict[str, Any]]:
+        """
+        Get Google credentials as a dictionary.
+        
+        Parses the GOOGLE_CREDENTIALS_JSON environment variable.
+        
+        Returns:
+            Parsed credentials dictionary or None if not set
+        
+        Raises:
+            ValueError: If credentials are set but cannot be parsed
+        """
+        if not self.google_credentials_json:
+            return None
+        try:
+            return json.loads(self.google_credentials_json)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse GOOGLE_CREDENTIALS_JSON: {e}")
     
     def validate_config(self) -> list[str]:
         """Validate configuration and return list of warnings/errors."""
@@ -64,11 +84,24 @@ class Settings(BaseSettings):
         if not self.qdrant_api_key:
             issues.append("QDRANT_API_KEY is not set")
         
-        if not self.gmail_credentials_path.exists():
-            issues.append(f"Gmail credentials file not found: {self.gmail_credentials_path}")
+
+        try:
+            creds = self.google_credentials_dict
+            if not creds:
+                issues.append(
+                    "GOOGLE_CREDENTIALS_JSON is not set. "
+                    "Please set the GOOGLE_CREDENTIALS_JSON environment variable."
+                )
+        except ValueError as e:
+            issues.append(f"Failed to parse GOOGLE_CREDENTIALS_JSON: {e}")
         
+        # Ensure data directory exists
         if not self.data_dir.exists():
-            issues.append(f"Data directory does not exist: {self.data_dir}")
+            try:
+                self.data_dir.mkdir(parents=True, exist_ok=True)
+                print(f"✓ Created data directory: {self.data_dir}")
+            except Exception as e:
+                issues.append(f"Cannot create data directory {self.data_dir}: {e}")
         
         return issues
 
