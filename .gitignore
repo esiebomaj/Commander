@@ -32,11 +32,6 @@ frontend/.vscode/
 frontend/.idea/
 frontend/.env.local
 frontend/.env
-frontend/package-lock.json
-frontend/package.json
-frontend/tsconfig.json
-frontend/tsconfig.node.json
-frontend/tsconfig.app.json
 frontend/tsconfig.spec.json
 frontend/tsconfig.base.json
 frontend/.vite/
