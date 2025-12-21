@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     # Paths
     data_dir: Path = Field(default=_BACKEND_DIR / "data")
     
+    # Supabase Settings
+    supabase_url: str = Field(default="", description="Supabase project URL")
+    supabase_anon_key: str = Field(default="", description="Supabase anonymous/public key")
+    supabase_service_role_key: str = Field(default="", description="Supabase service role key (for backend)")
+    supabase_jwt_secret: str = Field(default="", description="Supabase JWT secret for token verification")
+    
     # Google Credentials (required)
     google_credentials_json: str = Field(
         default="",
@@ -51,7 +57,9 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000)
     debug: bool = Field(default=False)
     frontend_url: str = Field(default="http://localhost:5173")
-    
+    gmail_push_topic_name: str = Field(default="projects/commander-481218/topics/commander-gmail")
+
+
     @property
     def google_credentials_dict(self) -> Optional[Dict[str, Any]]:
         """
@@ -84,6 +92,18 @@ class Settings(BaseSettings):
         
         if not self.qdrant_api_key:
             issues.append("QDRANT_API_KEY is not set")
+        
+        if not self.supabase_url:
+            issues.append("SUPABASE_URL is not set")
+        
+        if not self.supabase_anon_key:
+            issues.append("SUPABASE_ANON_KEY is not set")
+        
+        if not self.supabase_service_role_key:
+            issues.append("SUPABASE_SERVICE_ROLE_KEY is not set")
+        
+        if not self.supabase_jwt_secret:
+            issues.append("SUPABASE_JWT_SECRET is not set")
         
 
         try:

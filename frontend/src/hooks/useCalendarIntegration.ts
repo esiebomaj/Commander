@@ -18,10 +18,10 @@ export function useCalendarConnect() {
   
   return useMutation({
     mutationFn: async () => {
+      const redirectUri = `${window.location.origin}/integrations?calendar_callback=true`
+      
       // Get the auth URL
-      const { auth_url } = await getCalendarAuthUrl(
-        `${window.location.origin}/integrations?calendar_callback=true`
-      )
+      const { auth_url } = await getCalendarAuthUrl(redirectUri)
       
       // Open in new window
       const width = 600
@@ -49,7 +49,7 @@ export function useCalendarConnect() {
             cleanup()
             
             try {
-              await completeCalendarAuth(event.data.code, event.data.state)
+              await completeCalendarAuth(event.data.code, redirectUri, event.data.state)
               resolve()
             } catch (error) {
               reject(error)

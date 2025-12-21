@@ -27,7 +27,6 @@ from ...models import (
     ProposedAction,
     SourceType,
 )
-from ...storage import get_next_action_id, save_action
 from ...context_storage import get_relevant_history, get_vector_store, save_context
 from ...adapters import meeting_to_context
 from ...llm import decide_actions_for_context
@@ -168,6 +167,7 @@ def format_metadata_summary(metadata: MeetingMetadata) -> str:
 # --------------------------------------------------------------------------- #
 
 def process_new_transcript(
+    user_id: str,
     file_id: str,
     skip_if_exists: bool = True,
 ) -> Optional[Tuple[ContextItem, List[ProposedAction]]]:
@@ -184,6 +184,7 @@ def process_new_transcript(
     7. Save proposed actions
     
     Args:
+        user_id: The user's ID
         file_id: Google Drive file ID of the transcript
         skip_if_exists: If True, skip processing if already processed
     
@@ -192,12 +193,12 @@ def process_new_transcript(
     """
     # Check for duplicate
     store = get_vector_store()
-    if skip_if_exists and store.check_exist(file_id, SourceType.MEETING_TRANSCRIPT):
+    if skip_if_exists and store.check_exist(user_id, file_id, SourceType.MEETING_TRANSCRIPT):
         print(f"Skipping already processed transcript: {file_id}")
         return None
     
     # Get Drive client
-    drive = get_connected_drive()
+    drive = get_connected_drive(user_id)
     if not drive:
         return None
     
@@ -248,6 +249,7 @@ def process_new_transcript(
     # Create MeetingTranscript model with LLM-extracted metadata
     meeting = MeetingTranscript(
         id=file_id,
+        user_id=user_id,
         title=meeting_metadata.title,
         participants=meeting_metadata.participants if meeting_metadata.participants else ["Unknown Participant"],
         transcript=transcript_text,
@@ -260,12 +262,13 @@ def process_new_transcript(
     
     # Convert to ContextItem using existing adapter
     context = meeting_to_context(meeting)
-    created_actions = process_new_context(context)
+    created_actions = process_new_context(user_id, context)
     
     return context, created_actions
 
 
 def process_recent_transcripts(
+    user_id: str,
     max_files: int = 10,
     since_hours: int = 24,
 ) -> List[Tuple[ContextItem, List[ProposedAction]]]:
@@ -273,13 +276,14 @@ def process_recent_transcripts(
     Process recent transcript files from the Meet Recordings folder.
     
     Args:
+        user_id: The user's ID
         max_files: Maximum number of files to process
         since_hours: Only process files modified in the last N hours
     
     Returns:
         List of (ContextItem, List[ProposedAction]) tuples for processed files
     """
-    drive = get_connected_drive()
+    drive = get_connected_drive(user_id)
     if not drive:
         return []
     
@@ -296,9 +300,8 @@ def process_recent_transcripts(
     
     results = []
     for file in files:
-        result = process_new_transcript(file["id"])
+        result = process_new_transcript(user_id, file["id"])
         if result:
             results.append(result)
     
     return results
-

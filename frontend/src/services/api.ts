@@ -1,15 +1,57 @@
+import { supabase } from '@/lib/supabase'
 import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, PushStatus, VapidPublicKeyResponse, PushSubscribeRequest, PushSubscribeResponse, PushTestResponse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 class ApiError extends Error {
-  constructor(_status: number, message: string) {
+  status: number
+  constructor(status: number, message: string) {
     super(message)
     this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  if (!session?.access_token) {
+    throw new ApiError(401, 'Not authenticated')
+  }
+  
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${session.access_token}`,
   }
 }
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const headers = await getAuthHeaders()
+  
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      ...headers,
+      ...options?.headers,
+    },
+  })
+
+  if (response.status === 401) {
+    // Token expired or invalid - sign out
+    await supabase.auth.signOut()
+    throw new ApiError(401, 'Session expired. Please sign in again.')
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Request failed' }))
+    throw new ApiError(response.status, error.detail || 'Request failed')
+  }
+
+  return response.json()
+}
+
+// Public endpoint (no auth required)
+async function fetchPublicApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers: {
@@ -67,8 +109,8 @@ export async function getGmailAuthUrl(redirectUri?: string): Promise<GmailAuthUr
   return fetchApi<GmailAuthUrlResponse>(`/integrations/gmail/auth-url${query}`)
 }
 
-export async function completeGmailAuth(code: string, state?: string): Promise<GmailStatus> {
-  const params = new URLSearchParams({ code })
+export async function completeGmailAuth(code: string, redirectUri: string, state?: string): Promise<GmailStatus> {
+  const params = new URLSearchParams({ code, redirect_uri: redirectUri })
   if (state) params.append('state', state)
   return fetchApi<GmailStatus>(`/integrations/gmail/auth?${params.toString()}`)
 }
@@ -101,8 +143,8 @@ export async function getCalendarAuthUrl(redirectUri?: string): Promise<Calendar
   return fetchApi<CalendarAuthUrlResponse>(`/integrations/calendar/auth-url${query}`)
 }
 
-export async function completeCalendarAuth(code: string, state?: string): Promise<CalendarStatus> {
-  const params = new URLSearchParams({ code })
+export async function completeCalendarAuth(code: string, redirectUri: string, state?: string): Promise<CalendarStatus> {
+  const params = new URLSearchParams({ code, redirect_uri: redirectUri })
   if (state) params.append('state', state)
   return fetchApi<CalendarStatus>(`/integrations/calendar/auth?${params.toString()}`)
 }
@@ -123,8 +165,8 @@ export async function getDriveAuthUrl(redirectUri?: string): Promise<DriveAuthUr
   return fetchApi<DriveAuthUrlResponse>(`/integrations/drive/auth-url${query}`)
 }
 
-export async function completeDriveAuth(code: string, state?: string): Promise<DriveStatus> {
-  const params = new URLSearchParams({ code })
+export async function completeDriveAuth(code: string, redirectUri: string, state?: string): Promise<DriveStatus> {
+  const params = new URLSearchParams({ code, redirect_uri: redirectUri })
   if (state) params.append('state', state)
   return fetchApi<DriveStatus>(`/integrations/drive/auth?${params.toString()}`)
 }
@@ -143,7 +185,8 @@ export async function processRecentTranscripts(maxFiles: number = 5, sinceHours:
 
 // Push Notification API
 export async function getVapidPublicKey(): Promise<VapidPublicKeyResponse> {
-  return fetchApi<VapidPublicKeyResponse>('/push/vapid-public-key')
+  // VAPID key endpoint doesn't require auth
+  return fetchPublicApi<VapidPublicKeyResponse>('/push/vapid-public-key')
 }
 
 export async function subscribeToPush(subscription: PushSubscribeRequest): Promise<PushSubscribeResponse> {
@@ -169,4 +212,9 @@ export async function sendTestNotification(title?: string, body?: string): Promi
 
 export async function getPushStatus(): Promise<PushStatus> {
   return fetchApi<PushStatus>('/push/status')
+}
+
+// User Profile API
+export async function getCurrentUser(): Promise<{ id: string; email: string; full_name: string | null; avatar_url: string | null }> {
+  return fetchApi('/me')
 }

@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
 from ...config import settings
@@ -57,18 +57,25 @@ class GoogleOAuthClient(ABC):
     API_VERSION: str
     SCOPES: List[str]
     
-    def __init__(self):
+    def __init__(self, user_id: str):
         """
         Initialize the Google OAuth client.
         
         Gets credentials from settings.google_credentials_dict.
         Credentials are validated at startup, so they're guaranteed to be available.
+        
+        Args:
+            user_id: The user's ID. Required for per-user token operations.
         """
+        if not user_id:
+            raise ValueError("user_id is required")
+
+
+        self._user_id = user_id
         self._credentials_dict = settings.google_credentials_dict
         
         self._service = None
         self._credentials: Optional[Credentials] = None
-        self._flow: Optional[InstalledAppFlow] = None
     
     # ----------------------------------------------------------------------- #
     # Connection Status
@@ -76,8 +83,8 @@ class GoogleOAuthClient(ABC):
     
     def is_connected(self) -> bool:
         """Check if the integration is connected and has valid credentials."""
-        if not has_token(self.SERVICE_NAME):
-            print(f"[{self.SERVICE_NAME}] No token found")
+        if not has_token(self._user_id, self.SERVICE_NAME):
+            print(f"[{self.SERVICE_NAME}] No token found for user {self._user_id}")
             return False
         
         try:
@@ -112,49 +119,53 @@ class GoogleOAuthClient(ABC):
     # OAuth Flow
     # ----------------------------------------------------------------------- #
     
-    def get_auth_url(self, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob") -> str:
+    def get_auth_url(self, redirect_uri: str) -> str:
         """
         Get the OAuth authorization URL for the user to visit.
         
         Args:
-            redirect_uri: The redirect URI for OAuth. Use "urn:ietf:wg:oauth:2.0:oob" 
-                         for copy/paste flow, or a web callback URL for web apps.
+            redirect_uri: The redirect URI for OAuth callback.
         
         Returns:
             The authorization URL for the user to visit
         """
-        self._flow = InstalledAppFlow.from_client_config(
+        flow = Flow.from_client_config(
             self._credentials_dict,
             scopes=self.SCOPES,
             redirect_uri=redirect_uri,
         )
         
-        auth_url, _ = self._flow.authorization_url(
+        auth_url, _ = flow.authorization_url(
             access_type="offline",
             prompt="consent",
         )
         
         return auth_url
     
-    def complete_auth(self, authorization_code: str) -> bool:
+    def complete_auth(self, authorization_code: str, redirect_uri: str) -> bool:
         """
         Complete the OAuth flow with the authorization code.
         
         Args:
             authorization_code: The code returned after user authorization
+            redirect_uri: Must match the redirect_uri used in get_auth_url()
         
         Returns:
             True if authentication was successful
         """
-        if self._flow is None:
-            raise ValueError("Must call get_auth_url() first to start the OAuth flow")
-        
         try:
-            self._flow.fetch_token(code=authorization_code)
-            creds = self._flow.credentials
+            # Create a new flow with the same redirect_uri to exchange the code
+            flow = Flow.from_client_config(
+                self._credentials_dict,
+                scopes=self.SCOPES,
+                redirect_uri=redirect_uri,
+            )
+            
+            flow.fetch_token(code=authorization_code)
+            creds = flow.credentials
             
             # Save credentials with expiry
-            save_token(self.SERVICE_NAME, {
+            save_token(self._user_id, self.SERVICE_NAME, {
                 "token": creds.token,
                 "refresh_token": creds.refresh_token,
                 "token_uri": creds.token_uri,
@@ -166,52 +177,13 @@ class GoogleOAuthClient(ABC):
             
             self._credentials = creds
             self._service = None  # Reset service to use new credentials
-            self._flow = None
             
             return True
         except Exception as e:
             print(f"Error completing OAuth: {e}")
             return False
     
-    def run_local_auth_flow(self, port: int = 8080) -> bool:
-        """
-        Run the complete OAuth flow locally (opens browser).
-        
-        This is a convenience method for command-line usage.
-        
-        Args:
-            port: Local port for the OAuth callback
-        
-        Returns:
-            True if authentication was successful
-        """
-        try:
-            flow = InstalledAppFlow.from_client_config(
-                self._credentials_dict,
-                scopes=self.SCOPES,
-            )
-            creds = flow.run_local_server(port=port)
-            
-            # Save credentials with expiry
-            save_token(self.SERVICE_NAME, {
-                "token": creds.token,
-                "refresh_token": creds.refresh_token,
-                "token_uri": creds.token_uri,
-                "client_id": creds.client_id,
-                "client_secret": creds.client_secret,
-                "scopes": list(creds.scopes) if creds.scopes else self.SCOPES,
-                "expiry": creds.expiry.isoformat() if creds.expiry else None,
-            })
-            
-            self._credentials = creds
-            self._service = None
-            
-            print(f"Successfully authenticated as {self.get_user_email()}")
-            return True
-        except Exception as e:
-            print(f"Error during OAuth flow: {e}")
-            return False
-    
+
     def disconnect(self) -> bool:
         """
         Disconnect by removing stored credentials.
@@ -221,7 +193,7 @@ class GoogleOAuthClient(ABC):
         """
         self._credentials = None
         self._service = None
-        return delete_token(self.SERVICE_NAME)
+        return delete_token(self._user_id, self.SERVICE_NAME)
     
     # ----------------------------------------------------------------------- #
     # Credentials & Service
@@ -234,7 +206,7 @@ class GoogleOAuthClient(ABC):
         if self._credentials and self._credentials.valid:
             return self._credentials
         
-        token_data = get_token(self.SERVICE_NAME)
+        token_data = get_token(self._user_id, self.SERVICE_NAME)
         if not token_data:
             return None
         
@@ -258,7 +230,7 @@ class GoogleOAuthClient(ABC):
             if (creds.expired or not creds.valid) and creds.refresh_token:
                 creds.refresh(Request())
                 # Save refreshed token with expiry
-                save_token(self.SERVICE_NAME, {
+                save_token(self._user_id, self.SERVICE_NAME, {
                     "token": creds.token,
                     "refresh_token": creds.refresh_token,
                     "token_uri": creds.token_uri,

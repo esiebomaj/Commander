@@ -37,7 +37,7 @@ class GmailIntegration(GoogleOAuthClient):
     Extends GoogleOAuthClient to inherit OAuth flow and credential management.
     
     Usage:
-        gmail = GmailIntegration()
+        gmail = GmailIntegration(user_id="user_id")
         
         # Check if connected
         if not gmail.is_connected():
@@ -61,6 +61,10 @@ class GmailIntegration(GoogleOAuthClient):
         "https://www.googleapis.com/auth/gmail.send",
         "https://www.googleapis.com/auth/gmail.modify",  # For marking as read
     ]
+    
+    def __init__(self, user_id: Optional[str] = None):
+        """Initialize the Gmail integration for a specific user."""
+        super().__init__(user_id=user_id)
     
     # ----------------------------------------------------------------------- #
     # User Info (required by base class)
@@ -126,7 +130,7 @@ class GmailIntegration(GoogleOAuthClient):
                 profile = service.users().getProfile(userId="me").execute()
                 history_id = profile.get("historyId")
                 if history_id:
-                    save_gmail_history_id(history_id)
+                    save_gmail_history_id(self._user_id, history_id)
             
             return emails
             
@@ -166,6 +170,7 @@ class GmailIntegration(GoogleOAuthClient):
         
         return EmailMessage(
             id=msg["id"],
+            user_id=self._user_id,
             thread_id=msg.get("threadId", msg["id"]),
             from_email=headers.get("from", "unknown@unknown.com"),
             subject=headers.get("subject", "(no subject)"),
@@ -222,7 +227,7 @@ class GmailIntegration(GoogleOAuthClient):
         Returns:
             List of new EmailMessage objects
         """
-        history_id = get_gmail_history_id()
+        history_id = get_gmail_history_id(self._user_id)
         
         if not history_id:
             # No history ID - do a full fetch instead
@@ -259,7 +264,7 @@ class GmailIntegration(GoogleOAuthClient):
             # Update history ID
             new_history_id = results.get("historyId")
             if new_history_id:
-                save_gmail_history_id(new_history_id)
+                save_gmail_history_id(self._user_id, new_history_id)
             
             return new_emails
             
@@ -316,7 +321,7 @@ class GmailIntegration(GoogleOAuthClient):
             # Save the history ID for incremental sync
             history_id = response.get("historyId")
             if history_id:
-                save_gmail_history_id(history_id)
+                save_gmail_history_id(self._user_id, history_id)
             
             return response
             
@@ -445,20 +450,17 @@ class GmailIntegration(GoogleOAuthClient):
 
 
 # --------------------------------------------------------------------------- #
-# Singleton Instance
+# User-Specific Instance Helper
 # --------------------------------------------------------------------------- #
 
-# Global instance for easy access
-_gmail_instance: Optional[GmailIntegration] = None
-
-
-def get_gmail() -> GmailIntegration:
+def get_gmail(user_id: str) -> GmailIntegration:
     """
-    Get the global Gmail integration instance.
+    Get a Gmail integration instance for a specific user.
     
-    Credentials are loaded from settings automatically.
+    Args:
+        user_id: The user's ID
+    
+    Returns:
+        GmailIntegration configured for the user
     """
-    global _gmail_instance
-    if _gmail_instance is None:
-        _gmail_instance = GmailIntegration()
-    return _gmail_instance
+    return GmailIntegration(user_id=user_id)

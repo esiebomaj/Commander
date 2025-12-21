@@ -6,9 +6,10 @@ from __future__ import annotations
 import traceback
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 
+from ...auth import User, get_current_user
 from ...models import RunResponse
 
 
@@ -45,23 +46,26 @@ class GmailWebhookPayload(BaseModel):
 # --------------------------------------------------------------------------- #
 
 @router.get("/status", response_model=GmailStatusResponse)
-def gmail_status():
+def gmail_status(user: User = Depends(get_current_user)):
     """Get Gmail connection status."""
-    from . import get_gmail_status
-    status = get_gmail_status()
-    return GmailStatusResponse(**status)
+    from .client import get_gmail
+    gmail = get_gmail(user.id)
+    return GmailStatusResponse(connected=gmail.is_connected(), email=gmail.get_user_email())
 
 
 @router.get("/auth-url", response_model=GmailAuthUrlResponse)
-def gmail_auth_url(redirect_uri: str = Query(default="urn:ietf:wg:oauth:2.0:oob")):
+def gmail_auth_url(
+    redirect_uri: str = Query(default="urn:ietf:wg:oauth:2.0:oob"),
+    user: User = Depends(get_current_user),
+):
     """
     Get Gmail OAuth authorization URL.
     
     For web apps, provide your callback URL as redirect_uri.
     For CLI/desktop, use the default which shows a code to copy.
     """
-    from . import get_gmail
-    gmail = get_gmail()
+    from .client import get_gmail
+    gmail = get_gmail(user.id)
     auth_url = gmail.get_auth_url(redirect_uri=redirect_uri)
     return GmailAuthUrlResponse(
         auth_url=auth_url,
@@ -70,31 +74,43 @@ def gmail_auth_url(redirect_uri: str = Query(default="urn:ietf:wg:oauth:2.0:oob"
 
 
 @router.get("/auth", response_model=GmailStatusResponse)
-def gmail_auth(code: str = Query(..., description="Authorization code returned by Google"), state: Optional[str] = Query(default=None)):
+def gmail_auth(
+    code: str = Query(..., description="Authorization code returned by Google"),
+    redirect_uri: str = Query(..., description="Must match the redirect_uri used in auth-url"),
+    state: Optional[str] = Query(default=None),
+    user: User = Depends(get_current_user),
+):
     """
     Complete Gmail OAuth using query parameters from the redirect callback.
     
     Example:
-    /integrations/gmail/auth?state=STATE_VALUE&code=AUTH_CODE
+    /integrations/gmail/auth?code=AUTH_CODE&redirect_uri=https://yourapp.com/callback
     """
-    from . import get_gmail
-    gmail = get_gmail()
-    success = gmail.complete_auth(code)
+    from .client import get_gmail
+
+    gmail = get_gmail(user.id)
+    success = gmail.complete_auth(code, redirect_uri)
     if not success:
         raise HTTPException(status_code=400, detail="Failed to complete authentication")
+    
     return GmailStatusResponse(connected=True, email=gmail.get_user_email())
 
 
 @router.post("/disconnect", response_model=GmailStatusResponse)
-def gmail_disconnect():
+def gmail_disconnect(user: User = Depends(get_current_user)):
     """Disconnect Gmail integration."""
-    from . import disconnect_gmail
-    disconnect_gmail()
+    from .client import get_gmail
+    gmail = get_gmail(user.id)
+    gmail.disconnect()
+
     return GmailStatusResponse(connected=False, email=None)
 
 
 @router.post("/sync", response_model=GmailSyncResponse)
-def gmail_sync(max_results: int = Query(default=20, le=100)):
+def gmail_sync(
+    max_results: int = Query(default=20, le=100),
+    user: User = Depends(get_current_user),
+):
     """
     Sync recent emails from Gmail.
     
@@ -102,9 +118,9 @@ def gmail_sync(max_results: int = Query(default=20, le=100)):
     By default, does NOT generate actions (historical emails).
     """
     try:
-        from . import sync_recent_emails
+        from .orchestrator import sync_recent_emails
         
-        emails_count = sync_recent_emails(max_results=max_results)
+        emails_count = sync_recent_emails(user.id, max_results=max_results)
         return GmailSyncResponse(
             synced_count=emails_count,
             message=f"Synced {emails_count} emails as context"
@@ -116,16 +132,16 @@ def gmail_sync(max_results: int = Query(default=20, le=100)):
 
 
 @router.post("/process-new", response_model=RunResponse)
-def gmail_process_new():
+def gmail_process_new(user: User = Depends(get_current_user)):
     """
     Process new emails since last sync.
     
     This fetches new emails and generates actions for them.
     """
     try:
-        from . import process_new_emails
+        from .orchestrator import process_new_emails
         
-        actions = process_new_emails()
+        actions = process_new_emails(user.id)
         return RunResponse(proposed_actions=actions)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -134,17 +150,18 @@ def gmail_process_new():
 
 
 # --------------------------------------------------------------------------- #
-# Webhook Endpoints
+# Webhook Endpoints (no auth - called by Google)
 # --------------------------------------------------------------------------- #
 
 @router.post("/webhook/setup")
-def gmail_webhook_setup():
+def gmail_webhook_setup(user: User = Depends(get_current_user)):
     """
     Setup Gmail webhook.
     """
     try:
-        from . import setup_push_notifications
-        setup_push_notifications("projects/commander-481218/topics/commander-gmail")
+        from .orchestrator import setup_push_notifications
+        from ...config import settings
+        setup_push_notifications(user.id, settings.gmail_push_topic_name)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error setting up webhook: {str(e)}")
 
@@ -156,6 +173,9 @@ def gmail_webhook(payload: GmailWebhookPayload):
     
     Configure this URL in your Google Cloud Pub/Sub subscription
     to receive notifications when new emails arrive.
+    
+    Note: This endpoint does NOT require authentication as it's called by Google.
+    The webhook uses the email address in the notification to determine the user.
     """
     try:
         import base64
@@ -168,15 +188,15 @@ def gmail_webhook(payload: GmailWebhookPayload):
             decoded = base64.urlsafe_b64decode(message_data).decode("utf-8")
             notification = json.loads(decoded)
             
-            # Process new emails
-            from . import process_new_emails
-            actions = process_new_emails()
+            # TODO: Look up user by email address from notification
+            # For now, webhook processing is disabled until we implement
+            # a way to map email addresses to user IDs
             
             return {
-                "status": "processed",
+                "status": "received",
                 "email_address": notification.get("emailAddress"),
                 "history_id": notification.get("historyId"),
-                "actions_created": len(actions),
+                "note": "Webhook processing requires user lookup implementation",
             }
         
         return {"status": "no_data"}
@@ -185,8 +205,3 @@ def gmail_webhook(payload: GmailWebhookPayload):
         print(f"Error processing webhook: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error processing webhook")
-
-
-
-
-

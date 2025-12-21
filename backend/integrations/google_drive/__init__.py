@@ -7,8 +7,6 @@ from .client import (
     DriveIntegration,
     get_drive,
     get_connected_drive,
-    get_drive_status,
-    disconnect_drive,
 )
 from .routes import router
 from .transcript_processor import (
@@ -21,8 +19,6 @@ __all__ = [
     "DriveIntegration",
     "get_drive",
     "get_connected_drive",
-    "get_drive_status",
-    "disconnect_drive",
     # API Router
     "router",
     # Processing

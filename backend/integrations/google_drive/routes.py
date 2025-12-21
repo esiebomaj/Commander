@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request, Depends
 from pydantic import BaseModel
+
+from ...auth import User, get_current_user
 
 
 router = APIRouter(tags=["drive"])
@@ -65,23 +67,33 @@ class ListTranscriptsResponse(BaseModel):
 # --------------------------------------------------------------------------- #
 
 @router.get("/integrations/drive/status", response_model=DriveStatusResponse)
-def drive_status():
+def drive_status(user: User = Depends(get_current_user)):
     """Get Google Drive connection status."""
-    from . import get_drive_status
-    status = get_drive_status()
-    return DriveStatusResponse(**status)
+    from .client import get_drive
+    drive = get_drive(user.id)
+    connected = drive.is_connected()
+    webhook_info = drive.get_webhook_info() if connected else None
+    return DriveStatusResponse(
+        connected=connected, 
+        email=drive.get_user_email() if connected else None,
+        webhook_active=webhook_info is not None,
+        webhook_expiration=webhook_info.get("expiration") if webhook_info else None
+    )
 
 
 @router.get("/integrations/drive/auth-url", response_model=DriveAuthUrlResponse)
-def drive_auth_url(redirect_uri: str = Query(default="urn:ietf:wg:oauth:2.0:oob")):
+def drive_auth_url(
+    redirect_uri: str = Query(default="urn:ietf:wg:oauth:2.0:oob"),
+    user: User = Depends(get_current_user),
+):
     """
     Get Google Drive OAuth authorization URL.
     
     For web apps, provide your callback URL as redirect_uri.
     For CLI/desktop, use the default which shows a code to copy.
     """
-    from . import get_drive
-    drive = get_drive()
+    from .client import get_drive
+    drive = get_drive(user.id)
     auth_url = drive.get_auth_url(redirect_uri=redirect_uri)
     return DriveAuthUrlResponse(
         auth_url=auth_url,
@@ -92,14 +104,16 @@ def drive_auth_url(redirect_uri: str = Query(default="urn:ietf:wg:oauth:2.0:oob"
 @router.get("/integrations/drive/auth", response_model=DriveStatusResponse)
 def drive_auth(
     code: str = Query(..., description="Authorization code returned by Google"),
+    redirect_uri: str = Query(..., description="Must match the redirect_uri used in auth-url"),
     state: Optional[str] = Query(default=None),
+    user: User = Depends(get_current_user),
 ):
     """
     Complete Google Drive OAuth using query parameters from the redirect callback.
     """
-    from . import get_drive
-    drive = get_drive()
-    success = drive.complete_auth(code)
+    from .client import get_drive
+    drive = get_drive(user.id)
+    success = drive.complete_auth(code, redirect_uri)
     if not success:
         raise HTTPException(status_code=400, detail="Failed to complete authentication")
     
@@ -111,10 +125,11 @@ def drive_auth(
 
 
 @router.post("/integrations/drive/disconnect", response_model=DriveStatusResponse)
-def drive_disconnect():
+def drive_disconnect(user: User = Depends(get_current_user)):
     """Disconnect Google Drive integration."""
-    from . import disconnect_drive
-    disconnect_drive()
+    from .client import get_drive
+    drive = get_drive(user.id)
+    drive.disconnect()
     return DriveStatusResponse(connected=False, email=None, webhook_active=False)
 
 
@@ -125,6 +140,7 @@ def drive_disconnect():
 @router.post("/integrations/drive/setup-webhook", response_model=WebhookSetupResponse)
 def setup_drive_webhook(
     webhook_url: str = Query(..., description="Public URL to receive webhook notifications"),
+    user: User = Depends(get_current_user),
 ):
     """
     Set up a webhook to watch the Meet Recordings folder for new transcripts.
@@ -133,14 +149,14 @@ def setup_drive_webhook(
     Webhooks expire after ~1 week and need to be renewed.
     """
     try:
-        from . import get_drive
+        from .client import get_drive
         
-        drive = get_drive()
+        drive = get_drive(user.id)
         
         if not drive.is_connected():
             raise HTTPException(status_code=400, detail="Google Drive not connected. Authorize first.")
         
-            # Find the Meet Recordings folder if not provided
+        # Find the Meet Recordings folder
         folder = drive.find_meet_recordings_folder()
 
         if not folder:
@@ -168,12 +184,12 @@ def setup_drive_webhook(
 
 
 @router.post("/integrations/drive/stop-webhook")
-def stop_drive_webhook():
+def stop_drive_webhook(user: User = Depends(get_current_user)):
     """Stop the current webhook watch."""
     try:
-        from . import get_drive
+        from .client import get_drive
         
-        drive = get_drive()
+        drive = get_drive(user.id)
         
         webhook_info = drive.get_webhook_info()
         if not webhook_info:
@@ -204,6 +220,8 @@ async def receive_drive_webhook(
     
     Google sends notifications when files change in the watched folder.
     This endpoint processes them in the background to return 200 quickly.
+    
+    Note: This endpoint does NOT require authentication as it's called by Google.
     """
     # Google sends a sync message first to verify the endpoint
     if x_goog_resource_state == "sync":
@@ -212,16 +230,20 @@ async def receive_drive_webhook(
     
     # Log the notification
     print(f"Drive webhook notification: state={x_goog_resource_state}")
+
+    user_id = x_goog_channel_id.split("-")[2]
     
     # For actual changes, process recent files in the background
     if x_goog_resource_state in ("change", "update", "add"):
-        background_tasks.add_task(process_drive_changes)
+        background_tasks.add_task(process_drive_changes, user_id=user_id, channel_id=x_goog_channel_id)
+
+
     
     # Always return 200 quickly to acknowledge the webhook
     return {"status": "ok"}
 
 
-async def process_drive_changes():
+async def process_drive_changes(user_id: str, channel_id: str):
     """
     Background task to process Drive changes.
     
@@ -235,7 +257,11 @@ async def process_drive_changes():
         
         # Check for transcripts modified in the last hour
         # The deduplication check will skip any we've already processed
-        results = process_recent_transcripts(max_files=5, since_hours=1)
+        results = process_recent_transcripts(
+            user_id=user_id, 
+            max_files=5, 
+            since_hours=1
+            )
         
         print(f"Processed {len(results)} new transcript(s)")
         
@@ -253,6 +279,7 @@ async def process_drive_changes():
 def list_transcripts(
     max_results: int = Query(default=20, le=100),
     since_hours: int = Query(default=168, description="Only show files modified in last N hours"),
+    user: User = Depends(get_current_user),
 ):
     """
     List transcript files in the Meet Recordings folder.
@@ -260,10 +287,10 @@ def list_transcripts(
     Useful for seeing what transcripts are available before processing.
     """
     try:
-        from . import get_drive
+        from .client import get_drive
         from datetime import datetime, timedelta
         
-        drive = get_drive()
+        drive = get_drive(user.id)
         if not drive.is_connected():
             raise HTTPException(status_code=400, detail="Google Drive not connected")
 
@@ -294,6 +321,7 @@ def list_transcripts(
 def process_transcript(
     file_id: str,
     force: bool = Query(default=False, description="Process even if already processed"),
+    user: User = Depends(get_current_user),
 ):
     """
     Manually process a specific transcript file.
@@ -304,6 +332,7 @@ def process_transcript(
         from .transcript_processor import process_new_transcript
         
         result = process_new_transcript(
+            user_id=user.id,
             file_id=file_id,
             skip_if_exists=not force,
         )
@@ -329,6 +358,7 @@ def process_transcript(
 def process_recent(
     max_files: int = Query(default=5, le=20),
     since_hours: int = Query(default=24),
+    user: User = Depends(get_current_user),
 ):
     """
     Process recent transcript files from the Meet Recordings folder.
@@ -339,6 +369,7 @@ def process_recent(
         from .transcript_processor import process_recent_transcripts
         
         results = process_recent_transcripts(
+            user_id=user.id,
             max_files=max_files,
             since_hours=since_hours,
         )
@@ -357,4 +388,3 @@ def process_recent(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing transcripts: {str(e)}")
-

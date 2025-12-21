@@ -12,6 +12,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from ...models import ActionType
+from ...user_context import get_current_user_id
 from .client import get_calendar
 
 
@@ -43,7 +44,8 @@ def schedule_meeting(
     **kwargs,
 ) -> Dict[str, Any]:
     """Schedule a meeting on the user's Google Calendar. Use when a call/meeting is requested or complex coordination is needed."""
-    calendar = get_calendar()
+    user_id = get_current_user_id()
+    calendar = get_calendar(user_id)
     
     if not calendar.is_connected():
         return {"success": False, "error": "Google Calendar is not connected. Please authenticate first."}
@@ -76,7 +78,7 @@ def schedule_meeting(
 # List of Calendar tools for LLM binding
 CALENDAR_TOOLS = [schedule_meeting]
 
-# Map tool names to functions for execution
+# Map action types to tool functions
 CALENDAR_TOOL_EXECUTORS = {
     ActionType.SCHEDULE_MEETING: schedule_meeting,
 }

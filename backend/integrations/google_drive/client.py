@@ -41,7 +41,7 @@ class DriveIntegration(GoogleOAuthClient):
     Extends GoogleOAuthClient to inherit OAuth flow and credential management.
     
     Usage:
-        drive = DriveIntegration()
+        drive = DriveIntegration(user_id="user_id")
         
         # Check if connected
         if not drive.is_connected():
@@ -60,6 +60,10 @@ class DriveIntegration(GoogleOAuthClient):
     SCOPES = [
         "https://www.googleapis.com/auth/drive.readonly",
     ]
+    
+    def __init__(self, user_id: Optional[str] = None):
+        """Initialize the Drive integration for a specific user."""
+        super().__init__(user_id=user_id)
     
     # ----------------------------------------------------------------------- #
     # User Info (required by base class)
@@ -242,7 +246,7 @@ class DriveIntegration(GoogleOAuthClient):
             expiration_ms = int(expiration.timestamp() * 1000)
             
             # Create a unique channel ID
-            channel_id = f"commander-drive-{uuid.uuid4().hex[:8]}"
+            channel_id = f"commander-drive-{self._user_id}-{uuid.uuid4().hex[:8]}"
             
             # Set up the watch
             channel = service.files().watch(
@@ -256,7 +260,7 @@ class DriveIntegration(GoogleOAuthClient):
             ).execute()
             
             # Save webhook info for later reference
-            save_token("google_drive_webhook", {
+            save_token(self._user_id, "google_drive_webhook", {
                 "channel_id": channel["id"],
                 "resource_id": channel.get("resourceId"),
                 "folder_id": folder_id,
@@ -292,7 +296,7 @@ class DriveIntegration(GoogleOAuthClient):
             ).execute()
             
             # Remove saved webhook info
-            delete_token("google_drive_webhook")
+            delete_token(self._user_id, "google_drive_webhook")
             
             return True
         except HttpError as e:
@@ -301,61 +305,38 @@ class DriveIntegration(GoogleOAuthClient):
     
     def get_webhook_info(self) -> Optional[Dict[str, Any]]:
         """Get the current webhook configuration if any."""
-        return get_token("google_drive_webhook")
+        return get_token(self._user_id, "google_drive_webhook")
 
 
 # --------------------------------------------------------------------------- #
-# Singleton Instance
+# User-Specific Instance Helper
 # --------------------------------------------------------------------------- #
 
-# Global instance for easy access
-_drive_instance: Optional[DriveIntegration] = None
-
-
-def get_drive() -> DriveIntegration:
+def get_drive(user_id: str) -> DriveIntegration:
     """
-    Get the global Drive integration instance.
+    Get a Drive integration instance for a specific user.
     
-    Credentials are loaded from settings automatically.
+    Args:
+        user_id: The user's ID
+    
+    Returns:
+        DriveIntegration configured for the user
     """
-    global _drive_instance
-    if _drive_instance is None:
-        _drive_instance = DriveIntegration()
-    return _drive_instance
+    return DriveIntegration(user_id=user_id)
 
 
-def get_connected_drive() -> Optional[DriveIntegration]:
+def get_connected_drive(user_id: str) -> Optional[DriveIntegration]:
     """
-    Get a connected Drive instance, or None if not connected.
+    Get a connected Drive instance for a user, or None if not connected.
     
     This is a convenience helper to avoid repetitive connection checks.
     """
-    drive = get_drive()
+    drive = get_drive(user_id)
     if not drive.is_connected():
         print("Google Drive not connected")
         return None
     return drive
 
 
-def get_drive_status() -> Dict[str, Any]:
-    """Get the current Drive connection status."""
-    drive = get_drive()
-    connected = drive.is_connected()
-    webhook_info = drive.get_webhook_info()
-    
-    return {
-        "connected": connected,
-        "email": drive.get_user_email() if connected else None,
-        "webhook_active": webhook_info is not None,
-        "webhook_expiration": webhook_info.get("expiration") if webhook_info else None,
-    }
 
 
-def disconnect_drive() -> bool:
-    """Disconnect the Drive integration."""
-    global _drive_instance
-    if _drive_instance:
-        result = _drive_instance.disconnect()
-        _drive_instance = None
-        return result
-    return delete_token("google_drive")

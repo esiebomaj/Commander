@@ -3,10 +3,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from .auth import User, get_current_user
 from .context_storage import search_similar_contexts
 from .init_qdrant import init_qdrant
 from .models import ListActionsResponse, RunResponse
@@ -60,36 +61,43 @@ app.include_router(drive_router)
 # --------------------------------------------------------------------------- #
 
 @app.get("/actions", response_model=ListActionsResponse)
-def get_actions(status: Optional[str] = Query(default=None)):
+def get_actions(
+    status: Optional[str] = Query(default=None),
+    user: User = Depends(get_current_user),
+):
     if status and status not in {"pending", "executed", "skipped", "error"}:
         raise HTTPException(status_code=400, detail="Invalid status")
-    actions = fetch_actions(status=status)
+    actions = fetch_actions(user_id=user.id, status=status)
     return ListActionsResponse(actions=actions)
 
 
 @app.post("/actions/{action_id}/approve")
-def approve(action_id: int):
+def approve(action_id: int, user: User = Depends(get_current_user)):
     try:
-        updated = approve_action(action_id)
+        updated = approve_action(user_id=user.id, action_id=action_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return updated
 
 
 @app.post("/actions/{action_id}/skip")
-def skip(action_id: int):
+def skip(action_id: int, user: User = Depends(get_current_user)):
     try:
-        updated = skip_action(action_id)
+        updated = skip_action(user_id=user.id, action_id=action_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return updated
 
 
 @app.patch("/actions/{action_id}")
-def update_action(action_id: int, payload: dict):
+def update_action(
+    action_id: int,
+    payload: dict,
+    user: User = Depends(get_current_user),
+):
     """Update an action's payload (for editing before approval)."""
     try:
-        updated = update_action_payload(action_id, payload.get("payload", {}))
+        updated = update_action_payload(user.id, action_id, payload.get("payload", {}))
         if not updated:
             raise HTTPException(status_code=404, detail=f"Action {action_id} not found")
         return updated
@@ -125,7 +133,10 @@ class SimilaritySearchResponse(BaseModel):
 
 
 @app.post("/api/contexts/similar", response_model=SimilaritySearchResponse)
-def search_similar(request: SimilaritySearchRequest):
+def search_similar(
+    request: SimilaritySearchRequest,
+    user: User = Depends(get_current_user),
+):
     """
     Search for contexts similar to the given text.
     
@@ -133,6 +144,7 @@ def search_similar(request: SimilaritySearchRequest):
     """
     try:
         results = search_similar_contexts(
+            user_id=user.id,
             query_text=request.text,
             limit=request.limit,
         )
@@ -190,20 +202,26 @@ def get_vapid_public_key():
 
 
 @app.post("/push/subscribe")
-def push_subscribe(subscription: PushSubscription):
+def push_subscribe(
+    subscription: PushSubscription,
+    user: User = Depends(get_current_user),
+):
     """Subscribe to push notifications."""
     try:
-        push.subscribe(subscription.model_dump())
+        push.subscribe(user.id, subscription.model_dump())
         return {"success": True, "message": "Subscribed to push notifications"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/push/unsubscribe")
-def push_unsubscribe(data: PushUnsubscribe):
+def push_unsubscribe(
+    data: PushUnsubscribe,
+    user: User = Depends(get_current_user),
+):
     """Unsubscribe from push notifications."""
     try:
-        removed = push.unsubscribe(data.endpoint)
+        removed = push.unsubscribe(user.id, data.endpoint)
         if removed:
             return {"success": True, "message": "Unsubscribed from push notifications"}
         return {"success": False, "message": "Subscription not found"}
@@ -212,10 +230,14 @@ def push_unsubscribe(data: PushUnsubscribe):
 
 
 @app.post("/push/test")
-def push_test(data: TestNotification):
+def push_test(
+    data: TestNotification,
+    user: User = Depends(get_current_user),
+):
     """Send a test push notification (for development)."""
     try:
         result = push.send_notification(
+            user_id=user.id,
             title=data.title,
             body=data.body,
             url="/actions?edit=18",
@@ -230,13 +252,28 @@ def push_test(data: TestNotification):
 
 
 @app.get("/push/status")
-def push_status():
+def push_status(user: User = Depends(get_current_user)):
     """Get push notification status."""
     try:
-        count = push.get_subscription_count()
+        count = push.get_subscription_count(user.id)
         return {
             "enabled": count > 0,
             "subscription_count": count,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --------------------------------------------------------------------------- #
+# User Profile Endpoint
+# --------------------------------------------------------------------------- #
+
+@app.get("/me")
+def get_current_user_profile(user: User = Depends(get_current_user)):
+    """Get the current user's profile."""
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "avatar_url": user.avatar_url,
+    }

@@ -32,6 +32,7 @@ def email_to_context(email: EmailMessage) -> ContextItem:
     
     return ContextItem(
         id=str(uuid4()),
+        user_id=email.user_id,
         source_type=SourceType.GMAIL,
         source_id=email.id,  # Used for deduplication
         timestamp=email.received_at,
@@ -61,6 +62,7 @@ def slack_to_context(message: SlackMessage) -> ContextItem:
     
     return ContextItem(
         id=str(uuid4()),
+        user_id=message.user_id,
         source_type=SourceType.SLACK,
         source_id=message.id,
         timestamp=message.timestamp,
@@ -103,6 +105,7 @@ def meeting_to_context(meeting: MeetingTranscript) -> ContextItem:
     
     return ContextItem(
         id=str(uuid4()),
+        user_id=meeting.user_id,
         source_type=SourceType.MEETING_TRANSCRIPT,
         source_id=meeting.id,
         timestamp=meeting.meeting_time,
@@ -115,6 +118,7 @@ def meeting_to_context(meeting: MeetingTranscript) -> ContextItem:
 
 def calendar_event_to_context(
     event_id: str,
+    user_id: str,
     title: str,
     description: str,
     start_time: datetime,
@@ -146,6 +150,7 @@ def calendar_event_to_context(
     
     return ContextItem(
         id=str(uuid4()),
+        user_id=user_id,
         source_type=SourceType.CALENDAR_EVENT,
         source_id=event_id,
         timestamp=start_time,

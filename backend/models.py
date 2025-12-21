@@ -33,6 +33,7 @@ class ContextItem(BaseModel):
     source_id: str  # Original ID from the source system (for deduplication)
     timestamp: datetime  # When the original event occurred
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    user_id: str
     
     # Flexible content dict - schema varies by source_type
     # Email: {"from_email", "subject", "body_text", "thread_id"}
@@ -59,6 +60,7 @@ class EmailMessage(BaseModel):
     """Normalized email structure used by the core loop."""
 
     id: str
+    user_id: str
     thread_id: str
     from_email: str
     subject: str
@@ -72,6 +74,7 @@ class SlackMessage(BaseModel):
 
     id: str
     channel_id: str
+    user_id: str
     channel_name: Optional[str] = None
     user_id: str
     user_name: str
@@ -84,6 +87,7 @@ class MeetingTranscript(BaseModel):
     """Normalized meeting transcript structure."""
 
     id: str
+    user_id: str
     title: str
     participants: List[str]
     transcript: str

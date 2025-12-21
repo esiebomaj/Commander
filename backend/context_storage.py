@@ -28,9 +28,9 @@ def get_vector_store() -> QdrantVectorStore:
     
     Use this for simple operations like:
     - store.get_by_id(id)
-    - store.check_exist(source_id, source_type)
+    - store.check_exist(user_id, source_id, source_type)
     - store.update_processed(id, True)
-    - store.list_contexts(...)
+    - store.list_contexts(user_id, ...)
     
     For operations that require embedding generation, use the 
     module-level functions like save_context() and search_similar_contexts().
@@ -45,7 +45,7 @@ def get_vector_store() -> QdrantVectorStore:
 # High-Level Operations (with embedding generation)
 # --------------------------------------------------------------------------- #
 
-def save_context(context: ContextItem) -> ContextItem:
+def save_context(user_id: str, context: ContextItem) -> ContextItem:
     """
     Save a context item with its embedding to Qdrant.
     
@@ -53,6 +53,7 @@ def save_context(context: ContextItem) -> ContextItem:
     If the context already exists (by ID), it will be updated.
     
     Args:
+        user_id: The user's ID
         context: The context item to save
     
     Returns:
@@ -64,12 +65,13 @@ def save_context(context: ContextItem) -> ContextItem:
     embedding = generate_embedding(context.context_text)
     
     # Upsert to Qdrant
-    store.upsert(context, embedding)
+    store.upsert(user_id, context, embedding)
     
     return context
 
 
 def search_similar_contexts(
+    user_id: str,
     query_text: str,
     limit: int = 10,
     score_threshold: float | None = None,
@@ -81,6 +83,7 @@ def search_similar_contexts(
     Generates an embedding for the query before searching.
     
     Args:
+        user_id: The user's ID
         query_text: The text to search for
         limit: Maximum number of results
         score_threshold: Minimum similarity score (0-1)
@@ -96,6 +99,7 @@ def search_similar_contexts(
     
     # Search in Qdrant
     return store.search_similar(
+        user_id=user_id,
         embedding=query_embedding,
         limit=limit,
         score_threshold=score_threshold,
@@ -108,6 +112,7 @@ def search_similar_contexts(
 # --------------------------------------------------------------------------- #
 
 def get_relevant_history(
+    user_id: str,
     current_context: ContextItem,
     semantic_limit: int = 5,
     recent_limit: int = 5,
@@ -120,6 +125,7 @@ def get_relevant_history(
     2. Recent chronological contexts (temporal awareness of current state)
     
     Args:
+        user_id: The user's ID
         current_context: The context being processed
         semantic_limit: Number of semantically similar contexts to fetch
         recent_limit: Number of recent contexts to fetch
@@ -132,6 +138,7 @@ def get_relevant_history(
     
     # 1. Get semantically similar contexts
     similar_results = search_similar_contexts(
+        user_id=user_id,
         query_text=current_context.context_text,
         limit=semantic_limit + 1,  # +1 to account for current context
     )
@@ -144,6 +151,7 @@ def get_relevant_history(
     
     # 2. Get recent processed contexts (native ordering from Qdrant)
     recent_contexts_raw = store.list_contexts(
+        user_id=user_id,
         limit=recent_limit + semantic_limit + 1,  # Extra for deduplication
         processed=True,
         order_desc=True,
@@ -159,12 +167,12 @@ def get_relevant_history(
     # 3. Fetch associated actions for each context
     similar_history: List[Tuple[ContextItem, List[ProposedAction]]] = []
     for ctx in similar_contexts:
-        actions = get_actions_for_context(ctx.id)
+        actions = get_actions_for_context(user_id, ctx.id)
         similar_history.append((ctx, actions))
     
     recent_history: List[Tuple[ContextItem, List[ProposedAction]]] = []
     for ctx in recent_contexts:
-        actions = get_actions_for_context(ctx.id)
+        actions = get_actions_for_context(user_id, ctx.id)
         recent_history.append((ctx, actions))
     
     return similar_history, recent_history

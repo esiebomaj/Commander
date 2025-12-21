@@ -6,12 +6,13 @@ Tools are registered by action type for easy dispatch.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from .models import ActionType
+from .user_context import get_current_user_id
 
 
 # --------------------------------------------------------------------------- #
@@ -38,10 +39,12 @@ def create_todo(
     **kwargs,
 ) -> Dict[str, Any]:
     """Create a follow-up task in the user's todo list."""
-    # TODO: Integrate with todo API
+    user_id = get_current_user_id()
+    # TODO: Integrate with todo API per user
     return {
         "success": True,
         "note": "Todo created (mock)",
+        "user_id": user_id,
         "title": title,
         "notes": notes,
         "due_date": due_date,
@@ -52,7 +55,7 @@ def create_todo(
 # Tool Registry
 # --------------------------------------------------------------------------- #
 
-# Core tools list (for LLM binding) - only create_todo remains here
+# Core tools list (for LLM binding)
 CORE_TOOLS = [create_todo]
 
 # Import integration tools
@@ -72,6 +75,9 @@ def execute_tool(action_type: ActionType, payload: Dict[str, Any]) -> Dict[str, 
     """
     Execute a tool by action type with the given payload.
     
+    Note: The user context must be set before calling this function.
+    Use set_current_user_id() or ensure you're in an authenticated request.
+    
     Args:
         action_type: The ActionType enum value
         payload: Tool parameters
@@ -84,6 +90,7 @@ def execute_tool(action_type: ActionType, payload: Dict[str, Any]) -> Dict[str, 
         return {"success": False, "error": f"No executor for action type: {action_type}"}
     
     try:
+        # Tools now get user_id from context via get_current_user_id()
         return executor.invoke(payload)
     except Exception as e:
         return {"success": False, "error": str(e)}

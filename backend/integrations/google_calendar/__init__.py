@@ -6,8 +6,6 @@ Provides OAuth authentication and calendar event creation.
 from .client import (
     CalendarIntegration,
     get_calendar,
-    get_calendar_status,
-    disconnect_calendar,
 )
 from .routes import router
 from .tools import (
@@ -19,8 +17,6 @@ from .tools import (
 __all__ = [
     "CalendarIntegration",
     "get_calendar",
-    "get_calendar_status",
-    "disconnect_calendar",
     # API Router
     "router",
     # Tools

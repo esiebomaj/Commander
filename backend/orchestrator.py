@@ -12,7 +12,6 @@ from .llm import decide_actions_for_context
 from .models import ContextItem, ProposedAction
 from .storage import (
     get_action,
-    get_next_action_id,
     list_actions,
     save_action,
     update_action_status,
@@ -28,12 +27,14 @@ DEFAULT_HISTORY_LIMIT = 10
 
 
 def process_new_context(
+    user_id: str,
     context: ContextItem,
 ) -> List[ProposedAction]:
     """
     Process a list of context items through the LLM and persist results.
     
     Args:
+        user_id: The user's ID
         context: ContextItem object to process
     
     Returns:
@@ -44,12 +45,13 @@ def process_new_context(
     store = get_vector_store()
 
     # Check for duplicate (by source_id from the source system)
-    if store.check_exist(context.source_id, context.source_type):
+    if store.check_exist(user_id, context.source_id, context.source_type):
         print(f"Skipping duplicate context: {context.source_id}")
         return []
     
     # Get relevant history for LLM context (semantic + recent)
     similar_history, recent_history = get_relevant_history(
+        user_id=user_id,
         current_context=context,
         semantic_limit=history_limit // 2,
         recent_limit=history_limit // 2,
@@ -65,7 +67,7 @@ def process_new_context(
     # Create and save proposed actions
     for action_type, payload, confidence in actions:
         proposed = ProposedAction(
-            id=get_next_action_id(),
+            id=None,  # Will be assigned by database
             context_id=context.id,
             type=action_type,
             payload=payload,
@@ -75,36 +77,38 @@ def process_new_context(
             sender=context.sender,
             summary=context.summary,
         )
-        save_action(proposed)
-        created.append(proposed)
+        saved = save_action(user_id, proposed)
+        created.append(saved)
         
     # Save the context first 
     context.processed = True
-    save_context(context)
+    save_context(user_id, context)
     
     return created
 
 
-def get_actions(status: Optional[str] = None) -> List[ProposedAction]:
+def get_actions(user_id: str, status: Optional[str] = None) -> List[ProposedAction]:
     """
     List actions with optional status filter.
     
     Args:
+        user_id: The user's ID
         status: Filter by status (pending, executed, skipped, error)
     """
-    return list_actions(status=status)
+    return list_actions(user_id=user_id, status=status)
 
 
-def get_action_by_id(action_id: int) -> Optional[ProposedAction]:
+def get_action_by_id(user_id: str, action_id: int) -> Optional[ProposedAction]:
     """Get an action by its ID."""
-    return get_action(action_id)
+    return get_action(user_id, action_id)
 
 
-def approve_action(action_id: int) -> ProposedAction:
+def approve_action(user_id: str, action_id: int) -> ProposedAction:
     """
     Approve and execute an action.
     
     Args:
+        user_id: The user's ID
         action_id: The ID of the action to approve
     
     Returns:
@@ -113,7 +117,7 @@ def approve_action(action_id: int) -> ProposedAction:
     Raises:
         ValueError: If the action is not found
     """
-    action = get_action(action_id)
+    action = get_action(user_id, action_id)
     if not action:
         raise ValueError(f"Action {action_id} not found")
     
@@ -122,15 +126,16 @@ def approve_action(action_id: int) -> ProposedAction:
     
     result = execute_action(action)
 
-    updated = update_action_status(action_id, result.status)
+    updated = update_action_status(user_id, action_id, result.status)
     return updated or action
 
 
-def skip_action(action_id: int) -> ProposedAction:
+def skip_action(user_id: str, action_id: int) -> ProposedAction:
     """
     Skip an action (mark it as skipped without executing).
     
     Args:
+        user_id: The user's ID
         action_id: The ID of the action to skip
     
     Returns:
@@ -139,11 +144,9 @@ def skip_action(action_id: int) -> ProposedAction:
     Raises:
         ValueError: If the action is not found
     """
-    action = get_action(action_id)
+    action = get_action(user_id, action_id)
     if not action:
         raise ValueError(f"Action {action_id} not found")
     
-    updated = update_action_status(action_id, "skipped")
+    updated = update_action_status(user_id, action_id, "skipped")
     return updated or action
-
-

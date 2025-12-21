@@ -3,35 +3,35 @@ Web Push Notifications module for Commander.
 
 This module handles:
 - VAPID key generation and storage
-- Push subscription management
+- Push subscription management (per-user in Supabase)
 - Sending notifications to subscribed clients
 """
 from __future__ import annotations
 
 import base64
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pywebpush import webpush, WebPushException
 
 from .config import settings
+from .supabase_client import get_db
 
 
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
 
+# VAPID keys are shared across all users (stored locally)
 VAPID_KEYS_FILE = settings.data_dir / "vapid_keys.json"
-SUBSCRIPTIONS_FILE = settings.data_dir / "push_subscriptions.json"
 
 # VAPID contact email - used by push services to contact you if needed
 VAPID_CLAIMS_EMAIL = "mailto:admin@commander.local"
 
 
 # --------------------------------------------------------------------------- #
-# VAPID Key Management
+# VAPID Key Management (Local file - shared across users)
 # --------------------------------------------------------------------------- #
 
 def _load_vapid_keys() -> Optional[Dict[str, str]]:
@@ -44,6 +44,7 @@ def _load_vapid_keys() -> Optional[Dict[str, str]]:
 
 def _save_vapid_keys(keys: Dict[str, str]):
     """Save VAPID keys to file."""
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
     VAPID_KEYS_FILE.write_text(json.dumps(keys, indent=2))
 
 
@@ -103,74 +104,77 @@ def get_public_key() -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Subscription Management
+# Subscription Management (Supabase - per user)
 # --------------------------------------------------------------------------- #
 
-def _load_subscriptions() -> List[Dict[str, Any]]:
-    """Load subscriptions from file."""
-    try:
-        return json.loads(SUBSCRIPTIONS_FILE.read_text())
-    except (json.JSONDecodeError, FileNotFoundError):
-        return []
-
-
-def _save_subscriptions(subscriptions: List[Dict[str, Any]]):
-    """Save subscriptions to file."""
-    SUBSCRIPTIONS_FILE.write_text(json.dumps(subscriptions, indent=2))
-
-
-def subscribe(subscription: Dict[str, Any]) -> bool:
+def subscribe(user_id: str, subscription: Dict[str, Any]) -> bool:
     """
-    Add a new push subscription.
+    Add a new push subscription for a user.
     
     Args:
+        user_id: The user's ID
         subscription: The PushSubscription object from the browser
         
     Returns:
-        True if subscription was added, False if it already exists
+        True if subscription was added/updated
     """
-    subscriptions = _load_subscriptions()
+    db = get_db()
     
-    # Check for existing subscription by endpoint
     endpoint = subscription.get("endpoint", "")
-    for sub in subscriptions:
-        if sub.get("endpoint") == endpoint:
-            # Update existing subscription (keys might have changed)
-            sub.update(subscription)
-            _save_subscriptions(subscriptions)
-            return True
+    keys = subscription.get("keys", {})
     
-    # Add new subscription
-    subscriptions.append(subscription)
-    _save_subscriptions(subscriptions)
+    # Upsert - update if endpoint exists, otherwise insert
+    db.table("push_subscriptions").upsert({
+        "user_id": user_id,
+        "endpoint": endpoint,
+        "keys": keys,
+    }, on_conflict="endpoint").execute()
+    
     return True
 
 
-def unsubscribe(endpoint: str) -> bool:
+def unsubscribe(user_id: str, endpoint: str) -> bool:
     """
-    Remove a push subscription by endpoint.
+    Remove a push subscription by endpoint for a user.
     
     Args:
+        user_id: The user's ID
         endpoint: The push subscription endpoint URL
         
     Returns:
         True if subscription was removed, False if not found
     """
-    subscriptions = _load_subscriptions()
-    original_count = len(subscriptions)
+    db = get_db()
     
-    subscriptions = [s for s in subscriptions if s.get("endpoint") != endpoint]
+    result = db.table("push_subscriptions").delete().eq("user_id", user_id).eq("endpoint", endpoint).execute()
     
-    if len(subscriptions) < original_count:
-        _save_subscriptions(subscriptions)
-        return True
-    
-    return False
+    return len(result.data) > 0
 
 
-def get_subscription_count() -> int:
-    """Get the number of active subscriptions."""
-    return len(_load_subscriptions())
+def get_subscription_count(user_id: Optional[str] = None) -> int:
+    """
+    Get the number of active subscriptions.
+    
+    Args:
+        user_id: If provided, count only for this user. Otherwise count all.
+    """
+    db = get_db()
+    
+    query = db.table("push_subscriptions").select("id", count="exact")
+    if user_id:
+        query = query.eq("user_id", user_id)
+    
+    result = query.execute()
+    return result.count or 0
+
+
+def get_user_subscriptions(user_id: str) -> List[Dict[str, Any]]:
+    """Get all push subscriptions for a user."""
+    db = get_db()
+    
+    result = db.table("push_subscriptions").select("endpoint, keys").eq("user_id", user_id).execute()
+    
+    return [{"endpoint": row["endpoint"], "keys": row["keys"]} for row in result.data]
 
 
 # --------------------------------------------------------------------------- #
@@ -178,6 +182,7 @@ def get_subscription_count() -> int:
 # --------------------------------------------------------------------------- #
 
 def send_notification(
+    user_id: str,
     title: str,
     body: str,
     url: str = "/",
@@ -185,9 +190,10 @@ def send_notification(
     tag: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Send a push notification to all subscribed clients.
+    Send a push notification to all subscribed devices for a user.
     
     Args:
+        user_id: The user's ID
         title: Notification title
         body: Notification body text
         url: URL to open when notification is clicked
@@ -197,7 +203,7 @@ def send_notification(
     Returns:
         Dict with 'sent', 'failed', and 'removed' counts
     """
-    subscriptions = _load_subscriptions()
+    subscriptions = get_user_subscriptions(user_id)
     keys = get_vapid_keys()
     
     if not subscriptions:
@@ -238,12 +244,9 @@ def send_notification(
             print(f"Unexpected push error: {e}")
     
     # Remove invalid subscriptions
-    if removed_endpoints:
-        subscriptions = [
-            s for s in subscriptions 
-            if s.get("endpoint") not in removed_endpoints
-        ]
-        _save_subscriptions(subscriptions)
+    db = get_db()
+    for endpoint in removed_endpoints:
+        db.table("push_subscriptions").delete().eq("endpoint", endpoint).execute()
     
     return {
         "sent": sent,
@@ -256,25 +259,32 @@ def send_notification(
 # Helper for Action Notifications
 # --------------------------------------------------------------------------- #
 
-def notify_new_action(action_type: str, summary: Optional[str] = None, action_id: Optional[int] = None):
+def notify_new_action(
+    user_id: str,
+    action_type: str,
+    summary: Optional[str] = None,
+    action_id: Optional[int] = None,
+):
     """
     Send a notification about a new proposed action.
     
     Args:
+        user_id: The user's ID
         action_type: The type of action (e.g., "send_email", "create_event")
         summary: Optional summary text for the action
+        action_id: Optional action ID for deep linking
     """
-    # Don't send notifications if there are no subscriptions
-    if get_subscription_count() == 0:
+    # Don't send notifications if there are no subscriptions for this user
+    if get_subscription_count(user_id) == 0:
         return
     
     title = "New Action Proposed"
     body = summary if summary else f"A new {action_type.replace('_', ' ')} action needs your review."
     
     send_notification(
+        user_id=user_id,
         title=title,
         body=body,
-        url=f"/actions?edit={action_id}",
+        url=f"/actions?edit={action_id}" if action_id else "/actions",
         tag="new-action",  # Group all new action notifications
     )
-

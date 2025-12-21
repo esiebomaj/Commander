@@ -32,6 +32,7 @@ DEFAULT_HISTORY_LIMIT = 10
 # --------------------------------------------------------------------------- #
 
 def sync_recent_emails(
+    user_id: str,
     max_results: int = 20,
 ) -> int:
     """
@@ -39,12 +40,13 @@ def sync_recent_emails(
     This is used for initial sync when connecting Gmail.
     
     Args:
+        user_id: The user's ID
         max_results: Maximum number of emails to fetch
     
     Returns:
         Number of emails synced
     """
-    gmail = get_gmail()
+    gmail = get_gmail(user_id)
     
     if not gmail.is_connected():
         raise ValueError("Gmail is not connected. Please authenticate first.")
@@ -53,24 +55,27 @@ def sync_recent_emails(
 
     for email in emails:
         context = email_to_context(email)
-        save_context(context)
+        save_context(user_id, context)
 
     return len(emails)
 
 
-def process_new_emails() -> List[ProposedAction]:
+def process_new_emails(user_id: str) -> List[ProposedAction]:
     """
     Fetch and process new emails since last sync.
     
     This uses Gmail's history API for incremental sync and generates
     actions for new emails.
     
+    Args:
+        user_id: The user's ID
+    
     Returns:
         List of newly created proposed actions
         
     """
     from ...orchestrator import process_new_context
-    gmail = get_gmail()
+    gmail = get_gmail(user_id)
     
     if not gmail.is_connected():
         raise ValueError("Gmail is not connected. Please authenticate first.")
@@ -91,7 +96,7 @@ def process_new_emails() -> List[ProposedAction]:
         # Convert to context
         context = email_to_context(email)
      
-        new_actions = process_new_context(context)
+        new_actions = process_new_context(user_id, context)
         actions.extend(new_actions)
     
     print(f"Created {len(actions)} actions")
@@ -101,42 +106,16 @@ def process_new_emails() -> List[ProposedAction]:
 # --------------------------------------------------------------------------- #
 # Push Notifications (Webhook Setup)
 # --------------------------------------------------------------------------- #
-def setup_push_notifications(topic_name: str) -> Optional[Dict[str, Any]]:
+def setup_push_notifications(user_id: str, topic_name: str) -> Optional[Dict[str, Any]]:
     """
     Setup Gmail push notifications.
+    
+    Args:
+        user_id: The user's ID
+        topic_name: The Pub/Sub topic name
     """
-    gmail = get_gmail()
+    gmail = get_gmail(user_id)
     return gmail.setup_push_notifications(topic_name)
 
 
-# --------------------------------------------------------------------------- #
-# Connection Management
-# --------------------------------------------------------------------------- #
 
-def get_gmail_status() -> dict:
-    """Get the current Gmail connection status."""
-    gmail = get_gmail()
-    
-    connected = gmail.is_connected()
-    
-    return {
-        "connected": connected,
-        "email": gmail.get_user_email() if connected else None,
-    }
-
-
-def connect_gmail_interactive() -> bool:
-    """
-    Run interactive OAuth flow to connect Gmail.
-    
-    This opens a browser window for the user to authorize.
-    Returns True if successful.
-    """
-    gmail = get_gmail()
-    return gmail.run_local_auth_flow()
-
-
-def disconnect_gmail() -> bool:
-    """Disconnect Gmail and remove stored credentials."""
-    gmail = get_gmail()
-    return gmail.disconnect()

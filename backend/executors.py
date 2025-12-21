@@ -14,6 +14,12 @@ from .tools import execute_tool
 def execute_action(action: ProposedAction) -> ExecutionResult:
     """
     Execute an action by dispatching to the appropriate tool.
+    
+    Note: User context must be set before calling this function.
+    The tools will get the user_id from context via get_current_user_id().
+    
+    Args:
+        action: The action to execute
     """
     print(f"[{action.type.value.upper()}] {action.payload}")
     

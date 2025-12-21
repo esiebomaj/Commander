@@ -33,7 +33,7 @@ class CalendarIntegration(GoogleOAuthClient):
     Extends GoogleOAuthClient to inherit OAuth flow and credential management.
     
     Usage:
-        calendar = CalendarIntegration()
+        calendar = CalendarIntegration(user_id="user_id")
         
         # Check if connected
         if not calendar.is_connected():
@@ -59,6 +59,10 @@ class CalendarIntegration(GoogleOAuthClient):
         "https://www.googleapis.com/auth/calendar.events",
         "https://www.googleapis.com/auth/calendar.readonly",
     ]
+    
+    def __init__(self, user_id: Optional[str] = None):
+        """Initialize the Calendar integration for a specific user."""
+        super().__init__(user_id=user_id)
     
     # ----------------------------------------------------------------------- #
     # User Info (required by base class)
@@ -193,40 +197,21 @@ class CalendarIntegration(GoogleOAuthClient):
 
 
 # --------------------------------------------------------------------------- #
-# Singleton Instance
+# User-Specific Instance Helper
 # --------------------------------------------------------------------------- #
 
-# Global instance for easy access
-_calendar_instance: Optional[CalendarIntegration] = None
-
-
-def get_calendar() -> CalendarIntegration:
+def get_calendar(user_id: str) -> CalendarIntegration:
     """
-    Get the global Calendar integration instance.
+    Get a Calendar integration instance for a specific user.
     
-    Credentials are loaded from settings automatically.
+    Args:
+        user_id: The user's ID
+    
+    Returns:
+        CalendarIntegration configured for the user
     """
-    global _calendar_instance
-    if _calendar_instance is None:
-        _calendar_instance = CalendarIntegration()
-    return _calendar_instance
+    return CalendarIntegration(user_id=user_id)
 
 
-def get_calendar_status() -> Dict[str, Any]:
-    """Get the current Calendar connection status."""
-    calendar = get_calendar()
-    connected = calendar.is_connected()
-    return {
-        "connected": connected,
-        "email": calendar.get_user_email() if connected else None,
-    }
 
 
-def disconnect_calendar() -> bool:
-    """Disconnect the Calendar integration."""
-    global _calendar_instance
-    if _calendar_instance:
-        result = _calendar_instance.disconnect()
-        _calendar_instance = None
-        return result
-    return delete_token("google_calendar")

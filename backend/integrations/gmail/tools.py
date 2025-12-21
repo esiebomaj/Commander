@@ -12,6 +12,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from ...models import ActionType
+from ...user_context import get_current_user_id
 from .client import get_gmail
 
 
@@ -54,7 +55,8 @@ def gmail_send_email(
     **kwargs,
 ) -> Dict[str, Any]:
     """Send an email via Gmail. Use for replies or new emails when a response is clearly needed."""
-    gmail = get_gmail()
+    user_id = get_current_user_id()
+    gmail = get_gmail(user_id)
     
     if not gmail.is_connected():
         return {"success": False, "error": "Gmail is not connected. Please authenticate first."}
@@ -86,7 +88,8 @@ def gmail_create_draft(
     **kwargs,
 ) -> Dict[str, Any]:
     """Create an email draft in Gmail. Use when you want to prepare a response for user review before sending."""
-    gmail = get_gmail()
+    user_id = get_current_user_id()
+    gmail = get_gmail(user_id)
     
     if not gmail.is_connected():
         return {"success": False, "error": "Gmail is not connected. Please authenticate first."}
@@ -112,9 +115,8 @@ def gmail_create_draft(
 
 # List of Gmail tools for LLM binding
 GMAIL_TOOLS = [gmail_send_email, gmail_create_draft]
-# Add Gmail tools if available
 
-# Map tool names to functions for execution
+# Map action types to tool functions
 GMAIL_TOOL_EXECUTORS = {
     ActionType.GMAIL_SEND_EMAIL: gmail_send_email,
     ActionType.GMAIL_CREATE_DRAFT: gmail_create_draft,

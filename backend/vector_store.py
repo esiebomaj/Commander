@@ -47,6 +47,7 @@ def _context_to_payload(context: ContextItem) -> Dict[str, Any]:
     """Convert ContextItem to Qdrant payload."""
     return {
         "id": context.id,
+        "user_id": context.user_id,
         "source_type": context.source_type.value,
         "source_id": context.source_id,
         "timestamp": context.timestamp.isoformat(),
@@ -65,6 +66,7 @@ def _payload_to_context(payload: Dict[str, Any]) -> ContextItem:
 
     return ContextItem(
         id=payload["id"],
+        user_id=payload["user_id"],
         source_type=SourceType(payload["source_type"]),
         source_id=payload["source_id"],
         timestamp=datetime.fromisoformat(payload["timestamp"]),
@@ -132,6 +134,12 @@ class QdrantVectorStore:
         # Create payload indexes for efficient filtering and sorting
         self.client.create_payload_index(
             collection_name=self.collection_name,
+            field_name="user_id",
+            field_schema="keyword",
+        )
+        
+        self.client.create_payload_index(
+            collection_name=self.collection_name,
             field_name="source_id",
             field_schema="keyword",
         )
@@ -185,11 +193,12 @@ class QdrantVectorStore:
     # CRUD Operations
     # ----------------------------------------------------------------------- #
     
-    def upsert(self, context: ContextItem, embedding: List[float]) -> None:
+    def upsert(self, user_id: str, context: ContextItem, embedding: List[float]) -> None:
         """
         Insert or update a context item with its embedding.
         
         Args:
+            user_id: The user's ID
             context: The context item to store
             embedding: The embedding vector for the context
         """
@@ -230,6 +239,7 @@ class QdrantVectorStore:
     
     def get_by_source_id(
         self,
+        user_id: str,
         source_id: str,
         source_type: Optional[SourceType] = None
     ) -> Optional[ContextItem]:
@@ -237,6 +247,7 @@ class QdrantVectorStore:
         Retrieve a context by its source system ID.
         
         Args:
+            user_id: The user's ID
             source_id: The source system ID
             source_type: Optional source type filter
         
@@ -244,6 +255,10 @@ class QdrantVectorStore:
             ContextItem if found, None otherwise
         """
         filter_conditions = [
+            FieldCondition(
+                key="user_id",
+                match=MatchValue(value=user_id),
+            ),
             FieldCondition(
                 key="source_id",
                 match=MatchValue(value=source_id),
@@ -269,15 +284,16 @@ class QdrantVectorStore:
         
         return _payload_to_context(results[0].payload)
 
-    def check_exist(self, source_id: str, source_type: SourceType) -> bool:
+    def check_exist(self, user_id: str, source_id: str, source_type: SourceType) -> bool:
         """
-        Check if a context exists by its source ID and type.
+        Check if a context exists by its source ID and type for a user.
         
         Args:
+            user_id: The user's ID
             source_id: The source system ID
             source_type: The source type
         """
-        return self.get_by_source_id(source_id, source_type) is not None
+        return self.get_by_source_id(user_id, source_id, source_type) is not None
     
     def update_processed(self, context_id: str, processed: bool = True) -> bool:
         """
@@ -307,6 +323,7 @@ class QdrantVectorStore:
     
     def search_similar(
         self,
+        user_id: str,
         embedding: List[float],
         limit: int = 10,
         score_threshold: float | None = None,
@@ -317,6 +334,7 @@ class QdrantVectorStore:
         Search for similar contexts using vector similarity.
         
         Args:
+            user_id: The user's ID (required for filtering)
             embedding: Query embedding vector
             limit: Maximum number of results
             score_threshold: Minimum similarity score (0-1)
@@ -326,7 +344,13 @@ class QdrantVectorStore:
         Returns:
             List of (ContextItem, similarity_score) tuples
         """
-        filter_conditions = []
+        # Always filter by user_id
+        filter_conditions = [
+            FieldCondition(
+                key="user_id",
+                match=MatchValue(value=user_id),
+            )
+        ]
         
         if source_type:
             filter_conditions.append(
@@ -344,7 +368,7 @@ class QdrantVectorStore:
                 )
             )
         
-        search_filter = Filter(must=filter_conditions) if filter_conditions else None
+        search_filter = Filter(must=filter_conditions)
         
         results = self.client.query_points(
             collection_name=self.collection_name,
@@ -361,6 +385,7 @@ class QdrantVectorStore:
     
     def list_contexts(
         self,
+        user_id: str,
         limit: int = 100,
         source_type: Optional[SourceType] = None,
         processed: Optional[bool] = None,
@@ -370,6 +395,7 @@ class QdrantVectorStore:
         List contexts with optional filtering, ordered by timestamp.
         
         Args:
+            user_id: The user's ID (required for filtering)
             limit: Maximum number of contexts to return
             source_type: Optional filter by source type
             processed: Optional filter by processed status
@@ -378,7 +404,13 @@ class QdrantVectorStore:
         Returns:
             List of ContextItem objects ordered by timestamp
         """
-        filter_conditions = []
+        # Always filter by user_id
+        filter_conditions = [
+            FieldCondition(
+                key="user_id",
+                match=MatchValue(value=user_id),
+            )
+        ]
         
         if source_type:
             filter_conditions.append(
@@ -396,7 +428,7 @@ class QdrantVectorStore:
                 )
             )
         
-        search_filter = Filter(must=filter_conditions) if filter_conditions else None
+        search_filter = Filter(must=filter_conditions)
         
         results, _ = self.client.scroll(
             collection_name=self.collection_name,

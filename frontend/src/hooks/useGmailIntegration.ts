@@ -20,10 +20,10 @@ export function useGmailConnect() {
   
   return useMutation({
     mutationFn: async () => {
+      const redirectUri = `${window.location.origin}/integrations?gmail_callback=true`
+      
       // Get the auth URL
-      const { auth_url } = await getGmailAuthUrl(
-        `${window.location.origin}/integrations?gmail_callback=true`
-      )
+      const { auth_url } = await getGmailAuthUrl(redirectUri)
       
       // Open in new window
       const width = 600
@@ -51,7 +51,7 @@ export function useGmailConnect() {
             cleanup()
             
             try {
-              await completeGmailAuth(event.data.code, event.data.state)
+              await completeGmailAuth(event.data.code, redirectUri, event.data.state)
               resolve()
             } catch (error) {
               reject(error)

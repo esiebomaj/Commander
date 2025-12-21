@@ -19,10 +19,10 @@ export function useDriveConnect() {
   
   return useMutation({
     mutationFn: async () => {
+      const redirectUri = `${window.location.origin}/integrations?drive_callback=true`
+      
       // Get the auth URL
-      const { auth_url } = await getDriveAuthUrl(
-        `${window.location.origin}/integrations?drive_callback=true`
-      )
+      const { auth_url } = await getDriveAuthUrl(redirectUri)
       
       // Open in new window
       const width = 600
@@ -50,7 +50,7 @@ export function useDriveConnect() {
             cleanup()
             
             try {
-              await completeDriveAuth(event.data.code, event.data.state)
+              await completeDriveAuth(event.data.code, redirectUri, event.data.state)
               resolve()
             } catch (error) {
               reject(error)

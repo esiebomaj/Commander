@@ -1,124 +1,119 @@
 """
-Token storage for OAuth credentials.
+Token storage for OAuth credentials using Supabase.
 
-Stores tokens securely in a JSON file in the data directory.
+Stores tokens securely in the database, per user per service.
 """
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Any, Dict, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
 
-from ..config import settings
-
-
-# --------------------------------------------------------------------------- #
-# Configuration
-# --------------------------------------------------------------------------- #
-
-TOKENS_FILE = settings.data_dir / "tokens.json"
+from ..supabase_client import get_db
 
 
 # --------------------------------------------------------------------------- #
 # Token Storage Functions
 # --------------------------------------------------------------------------- #
 
-def _load_tokens() -> Dict[str, Any]:
-    """Load all tokens from the JSON file."""
-    try:
-        if TOKENS_FILE.exists():
-            return json.loads(TOKENS_FILE.read_text())
-    except (json.JSONDecodeError, FileNotFoundError):
-        pass
-    return {}
-
-
-def _save_tokens(tokens: Dict[str, Any]) -> None:
-    """Save tokens to the JSON file."""
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
-    TOKENS_FILE.write_text(json.dumps(tokens, indent=2, default=str))
-
-
-def save_token(service: str, token_data: Dict[str, Any]) -> None:
+def save_token(user_id: str, service: str, token_data: Dict[str, Any]) -> None:
     """
     Save OAuth token data for a service.
     
     Args:
-        service: The service name (e.g., "gmail", "slack")
+        user_id: The user's ID
+        service: The service name (e.g., "gmail", "calendar", "drive")
         token_data: Token data including access_token, refresh_token, etc.
     """
-    tokens = _load_tokens()
-    tokens[service] = {
+    db = get_db()
+    
+    # Add updated_at timestamp
+    token_data_with_ts = {
         **token_data,
         "updated_at": datetime.utcnow().isoformat(),
     }
-    _save_tokens(tokens)
+    
+    # Upsert - insert or update on conflict
+    db.table("integration_tokens").upsert({
+        "user_id": user_id,
+        "service": service,
+        "token_data": token_data_with_ts,
+        "updated_at": datetime.utcnow().isoformat(),
+    }, on_conflict="user_id,service").execute()
 
 
-def get_token(service: str) -> Optional[Dict[str, Any]]:
+def get_token(user_id: str, service: str) -> Optional[Dict[str, Any]]:
     """
     Get OAuth token data for a service.
     
     Args:
-        service: The service name (e.g., "gmail", "slack")
+        user_id: The user's ID
+        service: The service name (e.g., "gmail", "calendar", "drive")
     
     Returns:
         Token data dict or None if not found
     """
-    tokens = _load_tokens()
-    return tokens.get(service)
+    db = get_db()
+    
+    result = db.table("integration_tokens").select("token_data").eq("user_id", user_id).eq("service", service).execute()
+    
+    if result.data:
+        return result.data[0]["token_data"]
+    return None
 
 
-def delete_token(service: str) -> bool:
+def delete_token(user_id: str, service: str) -> bool:
     """
     Delete OAuth token for a service.
     
     Args:
-        service: The service name (e.g., "gmail", "slack")
+        user_id: The user's ID
+        service: The service name (e.g., "gmail", "calendar", "drive")
     
     Returns:
         True if token was deleted, False if it didn't exist
     """
-    tokens = _load_tokens()
-    if service in tokens:
-        del tokens[service]
-        _save_tokens(tokens)
-        return True
-    return False
+    db = get_db()
+    
+    result = db.table("integration_tokens").delete().eq("user_id", user_id).eq("service", service).execute()
+    
+    return len(result.data) > 0
 
 
-def has_token(service: str) -> bool:
-    """Check if a service has stored credentials."""
-    return get_token(service) is not None
+def has_token(user_id: str, service: str) -> bool:
+    """Check if a service has stored credentials for a user."""
+    return get_token(user_id, service) is not None
 
 
-def list_services() -> list[str]:
-    """List all services with stored tokens."""
-    return list(_load_tokens().keys())
+def list_services(user_id: str) -> list[str]:
+    """List all services with stored tokens for a user."""
+    db = get_db()
+    
+    result = db.table("integration_tokens").select("service").eq("user_id", user_id).execute()
+    
+    return [row["service"] for row in result.data]
 
 
 # --------------------------------------------------------------------------- #
 # Gmail-specific helpers
 # --------------------------------------------------------------------------- #
 
-def save_gmail_history_id(history_id: str) -> None:
+def save_gmail_history_id(user_id: str, history_id: str) -> None:
     """
     Save the last Gmail history ID for incremental sync.
     
     Args:
+        user_id: The user's ID
         history_id: The Gmail history ID to save
     """
-    tokens = _load_tokens()
-    if "gmail" not in tokens:
-        tokens["gmail"] = {}
-    tokens["gmail"]["last_history_id"] = history_id
-    tokens["gmail"]["history_updated_at"] = datetime.utcnow().isoformat()
-    _save_tokens(tokens)
+    token_data = get_token(user_id, "gmail") or {}
+    token_data["last_history_id"] = history_id
+    token_data["history_updated_at"] = datetime.utcnow().isoformat()
+    save_token(user_id, "gmail", token_data)
 
 
-def get_gmail_history_id() -> Optional[str]:
+def get_gmail_history_id(user_id: str) -> Optional[str]:
     """Get the last Gmail history ID for incremental sync."""
-    tokens = _load_tokens()
-    gmail_data = tokens.get("gmail", {})
-    return gmail_data.get("last_history_id")
+    token_data = get_token(user_id, "gmail")
+    if token_data:
+        return token_data.get("last_history_id")
+    return None

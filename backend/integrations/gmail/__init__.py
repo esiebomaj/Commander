@@ -5,9 +5,6 @@ Provides OAuth authentication, email reading, sending, and push notifications.
 """
 from .client import GmailIntegration, get_gmail
 from .orchestrator import (
-    connect_gmail_interactive,
-    disconnect_gmail,
-    get_gmail_status,
     process_new_emails,
     sync_recent_emails,
     setup_push_notifications,
@@ -26,9 +23,6 @@ __all__ = [
     "get_gmail",
     
     # Orchestrator functions
-    "connect_gmail_interactive",
-    "disconnect_gmail",
-    "get_gmail_status",
     "process_new_emails",
     "sync_recent_emails",
     "setup_push_notifications",
