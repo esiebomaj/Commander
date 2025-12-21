@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getActions, approveAction, skipAction, updateAction } from '@/services/api'
-import type { ProposedAction } from '@/services/types'
 
 export function useActions(status?: string) {
   return useQuery({

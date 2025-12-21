@@ -1,4 +1,4 @@
-import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, ProcessTranscriptResponse, PushStatus, VapidPublicKeyResponse, PushSubscribeRequest, PushSubscribeResponse, PushTestResponse } from './types'
+import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, PushStatus, VapidPublicKeyResponse, PushSubscribeRequest, PushSubscribeResponse, PushTestResponse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 

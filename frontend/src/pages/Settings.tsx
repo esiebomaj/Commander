@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { usePushNotifications, isPushSupported } from '@/hooks/usePushNotifications'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useTheme, type Theme } from '@/hooks/useTheme'
 import { useToast } from '@/components/ui/use-toast'
 import { Sun, Moon, Monitor } from 'lucide-react'
