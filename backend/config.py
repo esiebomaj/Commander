@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8000)
     debug: bool = Field(default=False)
+    frontend_url: str = Field(default="http://localhost:5173")
     
     @property
     def google_credentials_dict(self) -> Optional[Dict[str, Any]]:

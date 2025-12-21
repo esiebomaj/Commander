@@ -24,6 +24,7 @@ from .integrations.google_drive.routes import router as drive_router
 
 # Import push notification module
 from . import push
+from .config import settings
 
 
 @asynccontextmanager
@@ -38,7 +39,11 @@ app = FastAPI(title="Commander (MVP)", version="0.1.0", lifespan=lifespan)
 # Add CORS middleware to allow frontend to communicate with backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite and common dev ports
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://localhost:3000", 
+        settings.frontend_url
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
