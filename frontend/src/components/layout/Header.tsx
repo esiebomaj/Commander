@@ -12,18 +12,18 @@ export function Header({ pendingCount }: HeaderProps) {
   return (
     <header className="h-14 border-b border-border bg-card flex items-center px-6 sticky top-0 z-50">
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center">
+        <div className="w-10 h-10 bg-foreground rounded-lg flex items-center justify-center">
           {isDark ? (
             <img
               src={commanderLogo}
               alt="Commander Logo"
-              className="h-4 w-4 text-background"
+              className="h-8 w-8 text-background"
             />
           ) : (
             <img
               src={commanderLogoWhite}
               alt="Commander Logo"
-              className="h-4 w-4 text-background"
+              className="h-8 w-8 text-background"
             />
           )}
         </div>
