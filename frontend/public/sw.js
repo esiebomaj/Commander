@@ -12,7 +12,7 @@ self.addEventListener('push', (event) => {
     title: 'Commander',
     body: 'New notification',
     url: '/',
-    icon: '/commander.svg',
+    icon: '/commander.png',
   };
   
   // Parse the notification data if available
@@ -27,8 +27,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: data.body,
-    icon: data.icon || '/commander.svg',
-    badge: '/commander.svg',
+    icon: data.icon || '/commander.png',
+    badge: '/commander.png',
     tag: data.tag || 'commander-notification',
     data: {
       url: data.url || '/',

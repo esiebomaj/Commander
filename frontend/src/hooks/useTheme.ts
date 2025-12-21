@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode, createElement } from 'react'
 
 export type Theme = 'light' | 'dark' | 'system'
 
@@ -38,10 +38,19 @@ function applyTheme(theme: Theme) {
   }
 }
 
+type ThemeContextType = {
+  theme: Theme
+  resolvedTheme: 'light' | 'dark'
+  setTheme: (theme: Theme) => void
+  isDark: boolean
+}
+
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
+
 /**
- * Hook to manage theme state
+ * Theme Provider Component
  */
-export function useTheme() {
+export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getStoredTheme)
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(
     () => theme === 'system' ? getSystemTheme() : theme
@@ -73,11 +82,24 @@ export function useTheme() {
     setThemeState(newTheme)
   }, [])
   
-  return {
+  const value = {
     theme,
     resolvedTheme,
     setTheme,
     isDark: resolvedTheme === 'dark',
   }
+  
+  return createElement(ThemeContext.Provider, { value }, children)
+}
+
+/**
+ * Hook to access theme state
+ */
+export function useTheme() {
+  const context = useContext(ThemeContext)
+  if (context === undefined) {
+    throw new Error('useTheme must be used within a ThemeProvider')
+  }
+  return context
 }
 

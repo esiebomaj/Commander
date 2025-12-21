@@ -181,7 +181,7 @@ def send_notification(
     title: str,
     body: str,
     url: str = "/",
-    icon: str = "/commander.svg",
+    icon: str = "/commander.png",
     tag: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
