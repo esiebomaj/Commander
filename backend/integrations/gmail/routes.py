@@ -115,10 +115,10 @@ def gmail_sync(max_results: int = Query(default=20, le=100)):
     try:
         from . import sync_recent_emails
         
-        contexts = sync_recent_emails(max_results=max_results, generate_actions=False)
+        emails_count = sync_recent_emails(max_results=max_results)
         return GmailSyncResponse(
-            synced_count=len(contexts),
-            message=f"Synced {len(contexts)} emails as context"
+            synced_count=emails_count,
+            message=f"Synced {emails_count} emails as context"
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

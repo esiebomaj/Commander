@@ -15,10 +15,9 @@ from typing import List, Optional, Any
 from typing_extensions import Dict
 
 from ...adapters import email_to_context
-from ...models import ContextItem, EmailMessage, ProposedAction
-from ...context_storage import get_relevant_history, get_vector_store, save_context
-from ...storage import get_next_action_id, save_action
-from .client import GmailIntegration, get_gmail
+from ...models import EmailMessage, ProposedAction
+from ...context_storage import save_context
+from .client import get_gmail
 
 
 # --------------------------------------------------------------------------- #
@@ -34,52 +33,44 @@ DEFAULT_HISTORY_LIMIT = 10
 
 def sync_recent_emails(
     max_results: int = 20,
-    generate_actions: bool = False,
-    gmail: Optional[GmailIntegration] = None,
-) -> List[ContextItem]:
+) -> int:
     """
     Sync recent emails from Gmail and store as context.
-    
-    This is used for initial sync when connecting Gmail. By default,
-    it does NOT generate actions for these emails (they're historical).
+    This is used for initial sync when connecting Gmail.
     
     Args:
         max_results: Maximum number of emails to fetch
-        generate_actions: Whether to generate actions (default False for initial sync)
-        gmail: Optional Gmail instance (uses global if not provided)
     
     Returns:
-        List of saved ContextItem objects
+        Number of emails synced
     """
-    if gmail is None:
-        gmail = get_gmail()
+    gmail = get_gmail()
     
     if not gmail.is_connected():
         raise ValueError("Gmail is not connected. Please authenticate first.")
     
     emails = gmail.fetch_recent_emails(max_results=max_results)
-    return _process_emails(emails, generate_actions=generate_actions)
+
+    for email in emails:
+        context = email_to_context(email)
+        save_context(context)
+
+    return len(emails)
 
 
-def process_new_emails(
-    gmail: Optional[GmailIntegration] = None,
-    history_limit: int = DEFAULT_HISTORY_LIMIT,
-) -> List[ProposedAction]:
+def process_new_emails() -> List[ProposedAction]:
     """
     Fetch and process new emails since last sync.
     
     This uses Gmail's history API for incremental sync and generates
     actions for new emails.
     
-    Args:
-        gmail: Optional Gmail instance (uses global if not provided)
-        history_limit: Number of recent context items to include in LLM prompt
-    
     Returns:
         List of newly created proposed actions
+        
     """
-    if gmail is None:
-        gmail = get_gmail()
+    from ...orchestrator import process_new_context
+    gmail = get_gmail()
     
     if not gmail.is_connected():
         raise ValueError("Gmail is not connected. Please authenticate first.")
@@ -89,93 +80,22 @@ def process_new_emails(
 
     if not emails:
         return []
-    
-    # Process emails and generate actions
-    contexts = _process_emails(emails, generate_actions=True, history_limit=history_limit)
-    print(f"Processed {len(contexts)} contexts")
-    # Collect all actions created
-    from ...storage import get_actions_for_context
-    
+
     actions: List[ProposedAction] = []
-    for ctx in contexts:
-        ctx_actions = get_actions_for_context(ctx.id)
-        actions.extend(ctx_actions)
-    
-    return actions
 
-
-def _process_emails(
-    emails: List[EmailMessage],
-    generate_actions: bool = False,
-    history_limit: int = DEFAULT_HISTORY_LIMIT,
-) -> List[ContextItem]:
-    """
-    Process a list of emails into context items.
-    
-    Args:
-        emails: List of EmailMessage objects
-        generate_actions: Whether to generate actions for these emails
-        history_limit: Number of recent context items for LLM context
-    
-    Returns:
-        List of saved ContextItem objects
-    """
-    saved_contexts: List[ContextItem] = []
-    store = get_vector_store()
-    print(f"Processing {len(emails)} emails")
     for email in emails:
 
-    
+        if "SENT" in email.labels:
+            continue
+
         # Convert to context
         context = email_to_context(email)
-        
-        # Check for duplicate
-        if store.check_exist(context.source_id, context.source_type):
-            print(f"Skipping duplicate email: {email.subject[:50]}...")
-            continue
-        
-        if generate_actions and "SENT" not in email.labels: # dont generate actions for sent emails
-            # Get relevant history for LLM context (semantic + recent)
-            similar_history, recent_history = get_relevant_history(
-                current_context=context,
-                semantic_limit=history_limit // 2,
-                recent_limit=history_limit // 2,
-            )
-            
-            # Get LLM decisions
-            # Local import avoids circular dependency when tools load Gmail integration
-            from ...llm import decide_actions_for_context
-
-            actions = decide_actions_for_context(
-                context,
-                similar_history=similar_history,
-                recent_history=recent_history
-            )
-            
-            # Save actions
-            for action_type, payload, confidence in actions:
-                proposed = ProposedAction(
-                    id=get_next_action_id(),
-                    context_id=context.id,
-                    type=action_type,
-                    payload=payload,
-                    confidence=confidence,
-                    status="pending",
-                    source_type=context.source_type,
-                    sender=context.sender,
-                    summary=context.summary,
-                )
-                save_action(proposed)
-        
-
-        # Save context (with embedding)
-        save_context(context)
-        saved_contexts.append(context)
-
-        # Mark as processed
-        store.update_processed(context.id)
-    print(f"Saved {len(saved_contexts)} contexts")
-    return saved_contexts
+     
+        new_actions = process_new_context(context)
+        actions.extend(new_actions)
+    
+    print(f"Created {len(actions)} actions")
+    return actions
 
 
 # --------------------------------------------------------------------------- #

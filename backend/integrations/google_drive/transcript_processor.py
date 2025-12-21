@@ -17,6 +17,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
+from backend.orchestrator import process_new_context
+
 from ...config import settings
 from ...models import (
     ActionType,
@@ -258,45 +260,7 @@ def process_new_transcript(
     
     # Convert to ContextItem using existing adapter
     context = meeting_to_context(meeting)
-    
-    # Save the context (with embedding)
-    save_context(context)
-    print(f"Saved context for transcript: {context.id}")
-    
-    # Get relevant history for action decision (semantic + recent)
-    similar_history, recent_history = get_relevant_history(
-        current_context=context,
-        semantic_limit=5,
-        recent_limit=5,
-    )
-    
-    # Decide actions
-    actions_data = decide_actions_for_context(
-        context,
-        similar_history=similar_history,
-        recent_history=recent_history
-    )
-    
-    # Create and save proposed actions
-    created_actions: List[ProposedAction] = []
-    for action_type, payload, confidence in actions_data:
-        proposed = ProposedAction(
-            id=get_next_action_id(),
-            context_id=context.id,
-            type=action_type,
-            payload=payload,
-            confidence=confidence,
-            status="pending",
-            source_type=SourceType.MEETING_TRANSCRIPT,
-            sender=context.sender,
-            summary=f"Meeting: {meeting.title}",
-        )
-        save_action(proposed)
-        created_actions.append(proposed)
-        print(f"Created action: {action_type.value} (confidence: {confidence:.2f})")
-    
-    # Mark context as processed
-    store.update_processed(context.id)
+    created_actions = process_new_context(context)
     
     return context, created_actions
 

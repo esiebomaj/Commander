@@ -13,9 +13,7 @@ from .models import ListActionsResponse, RunResponse
 from .orchestrator import (
     approve_action,
     get_actions as fetch_actions,
-    run_ingest_and_decide,
     skip_action,
-    SourceType,
 )
 from .storage import update_action_payload
 
@@ -55,12 +53,6 @@ app.include_router(drive_router)
 # --------------------------------------------------------------------------- #
 # Core Endpoints
 # --------------------------------------------------------------------------- #
-
-@app.post("/run", response_model=RunResponse)
-def run(limit: int = 5, source: SourceType = "all"):
-    created = run_ingest_and_decide(source=source, limit=limit)
-    return RunResponse(proposed_actions=created)
-
 
 @app.get("/actions", response_model=ListActionsResponse)
 def get_actions(status: Optional[str] = Query(default=None)):
