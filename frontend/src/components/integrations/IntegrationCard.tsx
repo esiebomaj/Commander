@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Mail, MessageSquare, Calendar, CheckCircle2, Circle, FileText, Bell, BellOff } from 'lucide-react'
+import { Mail, MessageSquare, Calendar, CheckCircle2, Circle, FileText, BellOff } from 'lucide-react'
 
 interface IntegrationCardProps {
   name: string
