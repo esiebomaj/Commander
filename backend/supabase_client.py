@@ -6,24 +6,17 @@ and user-context client (for operations respecting RLS).
 """
 from __future__ import annotations
 
-from functools import lru_cache
-from typing import Optional
-
 from supabase import create_client, Client
 
 from .config import settings
 
 
-@lru_cache
 def get_supabase_client() -> Client:
     """
     Get a Supabase client with service role key.
     
     This client bypasses Row Level Security and should only be used
     for backend operations where we've already verified the user.
-    
-    Returns:
-        Supabase client instance
     """
     return create_client(
         settings.supabase_url,
