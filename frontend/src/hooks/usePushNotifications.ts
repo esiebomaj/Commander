@@ -69,33 +69,27 @@ export function usePushStatus() {
 
 /**
  * Hook to manage push notification subscriptions
+ * Uses React Query so subscription status is shared across all hook instances
  */
 export function usePushSubscription() {
   const queryClient = useQueryClient()
-  const [isSubscribed, setIsSubscribed] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
   
-  // Check current subscription status on mount
-  useEffect(() => {
-    const checkSubscription = async () => {
-      if (!isPushSupported()) {
-        setIsLoading(false)
-        return
-      }
-      
+  // Use React Query to check local browser subscription status - shared across all instances
+  const { data: isSubscribed = false, isLoading } = useQuery({
+    queryKey: ['push', 'subscription', 'local'],
+    queryFn: async () => {
+      if (!isPushSupported()) return false
       try {
         const registration = await navigator.serviceWorker.ready
         const subscription = await registration.pushManager.getSubscription()
-        setIsSubscribed(!!subscription)
+        return !!subscription
       } catch (error) {
         console.error('Error checking push subscription:', error)
-      } finally {
-        setIsLoading(false)
+        return false
       }
-    }
-    
-    checkSubscription()
-  }, [])
+    },
+    staleTime: Infinity, // Don't refetch automatically, we invalidate manually
+  })
   
   const subscribe = useCallback(async () => {
     if (!isPushSupported()) {
@@ -127,7 +121,8 @@ export function usePushSubscription() {
       keys: subscriptionJSON.keys as Record<string, string>,
     })
     
-    setIsSubscribed(true)
+    // Invalidate queries so all hook instances update
+    queryClient.invalidateQueries({ queryKey: ['push', 'subscription', 'local'] })
     queryClient.invalidateQueries({ queryKey: ['push', 'status'] })
     
     return subscription
@@ -150,7 +145,8 @@ export function usePushSubscription() {
         await unsubscribeFromPush(subscription.endpoint)
       }
       
-      setIsSubscribed(false)
+      // Invalidate queries so all hook instances update
+      queryClient.invalidateQueries({ queryKey: ['push', 'subscription', 'local'] })
       queryClient.invalidateQueries({ queryKey: ['push', 'status'] })
     } catch (error) {
       console.error('Error unsubscribing from push:', error)

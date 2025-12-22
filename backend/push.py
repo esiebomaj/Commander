@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional
 
 from pywebpush import webpush, WebPushException
 
+from backend.models import ProposedAction
+
 from .config import settings
 from .supabase_client import get_db
 
@@ -261,9 +263,7 @@ def send_notification(
 
 def notify_new_action(
     user_id: str,
-    action_type: str,
-    summary: Optional[str] = None,
-    action_id: Optional[int] = None,
+    action: ProposedAction,
 ):
     """
     Send a notification about a new proposed action.
@@ -277,14 +277,15 @@ def notify_new_action(
     # Don't send notifications if there are no subscriptions for this user
     if get_subscription_count(user_id) == 0:
         return
-    
-    title = "New Action Proposed"
-    body = summary if summary else f"A new {action_type.replace('_', ' ')} action needs your review."
+        
+    action_type = action.type.replace('_', ' ')
+    title = f"Review {action_type} Action"
+    body = f"A new {action_type} action needs your review."
     
     send_notification(
         user_id=user_id,
         title=title,
         body=body,
-        url=f"/actions?edit={action_id}" if action_id else "/actions",
+        url=f"/actions?edit={action.id}" if action.id else "/actions",
         tag="new-action",  # Group all new action notifications
     )

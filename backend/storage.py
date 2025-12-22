@@ -94,9 +94,7 @@ def save_action(user_id: str, action: ProposedAction, notify: bool = True) -> Pr
             from .push import notify_new_action
             notify_new_action(
                 user_id=user_id,
-                action_type=saved_action.type.value,
-                summary=saved_action.summary,
-                action_id=saved_action.id,
+                action=saved_action,
             )
         except Exception as e:
             # Don't fail action save if push notification fails

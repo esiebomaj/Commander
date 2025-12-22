@@ -5,6 +5,7 @@ import { getActions } from '@/services/api'
 import type { ProposedAction } from '@/services/types'
 import { useToast } from '@/components/ui/use-toast'
 import { useApproveAction, useSkipAction } from '@/hooks/useActions'
+import { usePushSubscription } from '@/hooks/usePushNotifications'
 import { getActionLabel, getPayloadDisplay, truncate } from '@/lib/actions'
 import { Check, X, Eye } from 'lucide-react'
 
@@ -18,11 +19,14 @@ export function useNewActions() {
   const approveMutation = useApproveAction()
   const skipMutation = useSkipAction()
   
-  // Poll pending actions every 5 seconds
+  // Check if push notifications are active
+  const { isSubscribed: isPushActive } = usePushSubscription()
+  
+  // Poll pending actions every 5 seconds, but disable polling if push notifications are active
   const { data: pendingActions } = useQuery({
     queryKey: ['actions', 'pending'],
     queryFn: () => getActions('pending'),
-    refetchInterval: 5000,
+    refetchInterval: isPushActive ? false : 5000,
   })
   
   const handleApprove = useCallback(async (action: ProposedAction, toastId: string) => {
