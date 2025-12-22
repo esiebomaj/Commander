@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, PushStatus, VapidPublicKeyResponse, PushSubscribeRequest, PushSubscribeResponse, PushTestResponse } from './types'
+import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, PushStatus, VapidPublicKeyResponse, PushSubscribeRequest, PushSubscribeResponse, PushTestResponse, WebhookSetupResponse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -133,6 +133,12 @@ export async function processNewGmailEmails(): Promise<{ proposed_actions: Propo
   })
 }
 
+export async function setupGmailWebhook(): Promise<WebhookSetupResponse> {
+  return fetchApi<WebhookSetupResponse>('/integrations/gmail/webhook/setup', {
+    method: 'POST',
+  })
+}
+
 // Calendar Integration API
 export async function getCalendarStatus(): Promise<CalendarStatus> {
   return fetchApi<CalendarStatus>('/integrations/calendar/status')
@@ -179,6 +185,12 @@ export async function disconnectDrive(): Promise<DriveStatus> {
 
 export async function processRecentTranscripts(maxFiles: number = 5, sinceHours: number = 24): Promise<{ success: boolean; processed_count: number; transcripts: Array<{ context_id: string; title: string; actions_created: number }> }> {
   return fetchApi(`/integrations/drive/process-recent?max_files=${maxFiles}&since_hours=${sinceHours}`, {
+    method: 'POST',
+  })
+}
+
+export async function setupDriveWebhook(): Promise<WebhookSetupResponse> {
+  return fetchApi<WebhookSetupResponse>('/integrations/drive/setup-webhook', {
     method: 'POST',
   })
 }

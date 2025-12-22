@@ -41,6 +41,14 @@ export interface Integration {
 export interface GmailStatus {
   connected: boolean
   email?: string
+  webhook_active: boolean
+  webhook_expiration?: string
+}
+
+export interface WebhookSetupResponse {
+  success: boolean
+  expiration?: string
+  message: string
 }
 
 export interface GmailAuthUrlResponse {

@@ -70,15 +70,11 @@ class ListTranscriptsResponse(BaseModel):
 def drive_status(user: User = Depends(get_current_user)):
     """Get Google Drive connection status."""
     from .client import get_drive
+    
     drive = get_drive(user.id)
-    connected = drive.is_connected()
-    webhook_info = drive.get_webhook_info() if connected else None
-    return DriveStatusResponse(
-        connected=connected, 
-        email=drive.get_user_email() if connected else None,
-        webhook_active=webhook_info is not None,
-        webhook_expiration=webhook_info.get("expiration") if webhook_info else None
-    )
+    
+    drive_status = drive.get_drive_status()
+    return DriveStatusResponse(**drive_status)
 
 
 @router.get("/integrations/drive/auth-url", response_model=DriveAuthUrlResponse)
@@ -112,16 +108,27 @@ def drive_auth(
     Complete Google Drive OAuth using query parameters from the redirect callback.
     """
     from .client import get_drive
+    from ...config import settings
+    
     drive = get_drive(user.id)
     success = drive.complete_auth(code, redirect_uri)
     if not success:
         raise HTTPException(status_code=400, detail="Failed to complete authentication")
     
-    return DriveStatusResponse(
-        connected=True,
-        email=drive.get_user_email(),
-        webhook_active=False,
-    )
+    # Auto-setup webhook after successful auth (don't fail if this fails)
+    webhook_active = False
+    webhook_expiration = None
+    try:
+        folder = drive.find_meet_recordings_folder()
+        if folder:
+            webhook_url = f"{settings.backend_url}/integrations/drive/webhook"
+            result = drive.setup_webhook(webhook_url, folder["id"])
+        else:
+            print(f"Meet Recordings folder not found for user {user.id} - skipping webhook setup")
+        return DriveStatusResponse(**drive.get_drive_status())
+    except Exception as e:
+        print(f"Warning: Drive webhook auto-setup failed for user {user.id}: {e}")
+        return DriveStatusResponse(**drive.get_drive_status())
 
 
 @router.post("/integrations/drive/disconnect", response_model=DriveStatusResponse)
@@ -129,6 +136,9 @@ def drive_disconnect(user: User = Depends(get_current_user)):
     """Disconnect Google Drive integration."""
     from .client import get_drive
     drive = get_drive(user.id)
+    webhook_info = drive.get_webhook_info()
+    if webhook_info:
+        drive.stop_webhook(webhook_info["channel_id"], webhook_info["resource_id"])
     drive.disconnect()
     return DriveStatusResponse(connected=False, email=None, webhook_active=False)
 
@@ -138,18 +148,16 @@ def drive_disconnect(user: User = Depends(get_current_user)):
 # --------------------------------------------------------------------------- #
 
 @router.post("/integrations/drive/setup-webhook", response_model=WebhookSetupResponse)
-def setup_drive_webhook(
-    webhook_url: str = Query(..., description="Public URL to receive webhook notifications"),
-    user: User = Depends(get_current_user),
-):
+def setup_drive_webhook(user: User = Depends(get_current_user)):
     """
     Set up a webhook to watch the Meet Recordings folder for new transcripts.
     
-    The webhook_url must be publicly accessible and accept POST requests.
+    Uses the configured backend URL for the webhook endpoint.
     Webhooks expire after ~1 week and need to be renewed.
     """
     try:
         from .client import get_drive
+        from ...config import settings
         
         drive = get_drive(user.id)
         
@@ -165,6 +173,7 @@ def setup_drive_webhook(
                 message="Meet Recordings folder not found - cannot set up webhook"
             )
 
+        webhook_url = f"{settings.backend_url}/integrations/drive/webhook"
         result = drive.setup_webhook(webhook_url, folder["id"])
         if not result:
             return WebhookSetupResponse(
@@ -179,33 +188,11 @@ def setup_drive_webhook(
             expiration=webhook_info.get("expiration") if webhook_info else None,
             message="Webhook set up successfully"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error setting up webhook: {str(e)}")
 
-
-@router.post("/integrations/drive/stop-webhook")
-def stop_drive_webhook(user: User = Depends(get_current_user)):
-    """Stop the current webhook watch."""
-    try:
-        from .client import get_drive
-        
-        drive = get_drive(user.id)
-        
-        webhook_info = drive.get_webhook_info()
-        if not webhook_info:
-            return {"success": False, "message": "No active webhook found"}
-        
-        success = drive.stop_webhook(
-            channel_id=webhook_info["channel_id"],
-            resource_id=webhook_info["resource_id"],
-        )
-        
-        return {
-            "success": success,
-            "message": "Webhook stopped" if success else "Failed to stop webhook"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error stopping webhook: {str(e)}")
 
 
 @router.post("/integrations/drive/webhook")

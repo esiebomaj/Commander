@@ -5,6 +5,7 @@ import {
   useGmailConnect,
   useGmailDisconnect,
   useGmailSync,
+  useGmailWebhookSetup,
 } from '@/hooks/useGmailIntegration'
 import {
   useCalendarStatus,
@@ -16,6 +17,7 @@ import {
   useDriveConnect,
   useDriveDisconnect,
   useDriveSync,
+  useDriveWebhookSetup,
 } from '@/hooks/useDriveIntegration'
 import { useToast } from '@/components/ui/use-toast'
 import { useSearchParams } from 'react-router-dom'
@@ -29,6 +31,7 @@ export function IntegrationsPage() {
   const gmailConnectMutation = useGmailConnect()
   const gmailDisconnectMutation = useGmailDisconnect()
   const gmailSyncMutation = useGmailSync()
+  const gmailWebhookSetupMutation = useGmailWebhookSetup()
   
   // Calendar hooks
   const { data: calendarStatus, isLoading: calendarLoading } = useCalendarStatus()
@@ -40,6 +43,7 @@ export function IntegrationsPage() {
   const driveConnectMutation = useDriveConnect()
   const driveDisconnectMutation = useDriveDisconnect()
   const driveSyncMutation = useDriveSync()
+  const driveWebhookSetupMutation = useDriveWebhookSetup()
   
   // Handle OAuth callbacks
   useEffect(() => {
@@ -132,6 +136,30 @@ export function IntegrationsPage() {
     }
   }
   
+  const handleGmailWebhookSetup = async () => {
+    try {
+      const result = await gmailWebhookSetupMutation.mutateAsync()
+      if (result.success) {
+        toast({
+          title: "Notifications enabled",
+          description: "Gmail push notifications are now active.",
+        })
+      } else {
+        toast({
+          title: "Setup failed",
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+    } catch {
+      toast({
+        title: "Setup failed",
+        description: "Failed to enable Gmail notifications.",
+        variant: "destructive",
+      })
+    }
+  }
+  
   // Calendar handlers
   const handleCalendarConnect = async () => {
     try {
@@ -214,6 +242,30 @@ export function IntegrationsPage() {
     }
   }
   
+  const handleDriveWebhookSetup = async () => {
+    try {
+      const result = await driveWebhookSetupMutation.mutateAsync()
+      if (result.success) {
+        toast({
+          title: "Notifications enabled",
+          description: "Drive push notifications are now active.",
+        })
+      } else {
+        toast({
+          title: "Setup failed",
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+    } catch {
+      toast({
+        title: "Setup failed",
+        description: "Failed to enable Drive notifications.",
+        variant: "destructive",
+      })
+    }
+  }
+  
   if (gmailLoading || calendarLoading || driveLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -237,14 +289,17 @@ export function IntegrationsPage() {
           description="Read and send emails automatically"
           connected={gmailStatus?.connected || false}
           email={gmailStatus?.email}
+          webhookActive={gmailStatus?.webhook_active}
           onConnect={handleGmailConnect}
           onDisconnect={handleGmailDisconnect}
           onSync={handleGmailSync}
+          onSetupWebhook={handleGmailWebhookSetup}
           loading={
             gmailConnectMutation.isPending ||
             gmailDisconnectMutation.isPending ||
             gmailSyncMutation.isPending
           }
+          webhookLoading={gmailWebhookSetupMutation.isPending}
         />
         
         <IntegrationCard
@@ -265,15 +320,17 @@ export function IntegrationsPage() {
           description="Fetch and summarize meeting transcripts"
           connected={driveStatus?.connected || false}
           email={driveStatus?.email}
-          extraInfo={driveStatus?.webhook_active ? 'Webhook active' : undefined}
+          webhookActive={driveStatus?.webhook_active}
           onConnect={handleDriveConnect}
           onDisconnect={handleDriveDisconnect}
           onSync={handleDriveSync}
+          onSetupWebhook={handleDriveWebhookSetup}
           loading={
             driveConnectMutation.isPending ||
             driveDisconnectMutation.isPending ||
             driveSyncMutation.isPending
           }
+          webhookLoading={driveWebhookSetupMutation.isPending}
         />
         
         <IntegrationCard

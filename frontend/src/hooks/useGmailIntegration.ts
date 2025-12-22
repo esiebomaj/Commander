@@ -6,6 +6,7 @@ import {
   disconnectGmail,
   syncGmail,
   processNewGmailEmails,
+  setupGmailWebhook,
 } from '@/services/api'
 
 export function useGmailStatus() {
@@ -102,6 +103,17 @@ export function useGmailProcessNew() {
     mutationFn: processNewGmailEmails,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['actions'] })
+    },
+  })
+}
+
+export function useGmailWebhookSetup() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: setupGmailWebhook,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gmail', 'status'] })
     },
   })
 }

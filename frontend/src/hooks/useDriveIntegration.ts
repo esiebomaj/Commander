@@ -5,6 +5,7 @@ import {
   completeDriveAuth,
   disconnectDrive,
   processRecentTranscripts,
+  setupDriveWebhook,
 } from '@/services/api'
 
 export function useDriveStatus() {
@@ -96,6 +97,17 @@ export function useDriveSync() {
       processRecentTranscripts(maxFiles, sinceHours),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['actions'] })
+    },
+  })
+}
+
+export function useDriveWebhookSetup() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: setupDriveWebhook,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive', 'status'] })
     },
   })
 }

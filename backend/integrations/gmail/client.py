@@ -22,7 +22,11 @@ from googleapiclient.errors import HttpError
 from ...config import settings
 from ...models import EmailMessage
 from ..google.oauth import GoogleOAuthClient
-from ..token_storage import save_gmail_history_id, get_gmail_history_id
+from ..token_storage import (
+    save_webhook_info,
+    get_webhook_info as get_webhook_info_from_storage,
+    clear_webhook_info,
+)
 from .cleaning import html_to_text, sanitize_body_text
 
 
@@ -129,8 +133,13 @@ class GmailIntegration(GoogleOAuthClient):
                 # Get current history ID
                 profile = service.users().getProfile(userId="me").execute()
                 history_id = profile.get("historyId")
+
                 if history_id:
-                    save_gmail_history_id(self._user_id, history_id)
+                    save_webhook_info(self._user_id, self.SERVICE_NAME, {
+                        **(self.get_webhook_info(self._user_id, self.SERVICE_NAME) or {}),
+                        "history_id": history_id,
+
+                    })
             
             return emails
             
@@ -227,7 +236,12 @@ class GmailIntegration(GoogleOAuthClient):
         Returns:
             List of new EmailMessage objects
         """
-        history_id = get_gmail_history_id(self._user_id)
+        webhook_info = self.get_webhook_info()
+        
+        if webhook_info:
+            history_id = webhook_info.get("history_id")
+        else:
+            history_id = None
         
         if not history_id:
             # No history ID - do a full fetch instead
@@ -263,8 +277,12 @@ class GmailIntegration(GoogleOAuthClient):
             
             # Update history ID
             new_history_id = results.get("historyId")
+
             if new_history_id:
-                save_gmail_history_id(self._user_id, new_history_id)
+                save_webhook_info(self._user_id, self.SERVICE_NAME, {
+                    **(webhook_info or {}),
+                    "history_id": new_history_id,
+                })
             
             return new_emails
             
@@ -301,46 +319,70 @@ class GmailIntegration(GoogleOAuthClient):
             Watch response with historyId and expiration, or None on error
         """
         service = self._get_service()
-        
+        label_ids = label_ids or ["IMPORTANT"]
         try:
             request_body = {
                 "topicName": topic_name,
-                "labelIds": label_ids or ["IMPORTANT"],
+                "labelIds": label_ids,
             }
             
-            print("--------------------------------")
-            print(request_body)
-            print("--------------------------------")
             response = service.users().watch(
                 userId="me",
                 body=request_body,
             ).execute()
-
-            print(response)
             
             # Save the history ID for incremental sync
             history_id = response.get("historyId")
-            if history_id:
-                save_gmail_history_id(self._user_id, history_id)
+
+            # Save webhook info in token data
+            save_webhook_info(self._user_id, self.SERVICE_NAME, {
+                "history_id": history_id,
+                "expiration": response.get("expiration"),  # Unix timestamp in ms
+                "topic_name": topic_name,
+                "label_ids": label_ids,
+            })
             
             return response
             
         except HttpError as e:
             print(f"Error setting up push notifications: {e}")
             return None
-    
+
 
     def stop_push_notifications(self) -> bool:
         """Stop Gmail push notifications."""
         service = self._get_service()
         
-        try:
-            service.users().stop(userId="me").execute()
-            return True
-        except HttpError as e:
-            print(f"Error stopping push notifications: {e}")
-            return False
+        service.users().stop(userId="me").execute()
+        # Clear webhook info from token data
+        clear_webhook_info(self._user_id, self.SERVICE_NAME)
+  
     
+    def get_webhook_info(self) -> Optional[Dict[str, Any]]:
+        """Get the current webhook/watch configuration if any."""
+        return get_webhook_info_from_storage(self._user_id, self.SERVICE_NAME)
+    
+
+    def get_gmail_status(self) -> Dict[str, Any]:
+        """Get the current Gmail status."""
+        import time
+
+        webhook_active = False
+        webhook_expiration = None
+        webhook_info = self.get_webhook_info()
+
+        if webhook_info and webhook_info.get("expiration"):
+            expiration_ms = int(webhook_info["expiration"])
+            webhook_active = expiration_ms > (time.time() * 1000)
+            webhook_expiration = webhook_info["expiration"]
+
+        return {
+            "connected": self.is_connected(),
+            "email": self.get_user_email(),
+            "webhook_active": webhook_active,
+            "webhook_expiration": webhook_expiration,
+        }
+
     # ----------------------------------------------------------------------- #
     # Email Sending
     # ----------------------------------------------------------------------- #

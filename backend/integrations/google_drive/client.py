@@ -19,7 +19,11 @@ from googleapiclient.errors import HttpError
 
 from ...config import settings
 from ..google.oauth import GoogleOAuthClient
-from ..token_storage import get_token, save_token, delete_token
+from ..token_storage import (
+    save_webhook_info,
+    get_webhook_info as get_webhook_info_from_storage,
+    clear_webhook_info,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -259,8 +263,8 @@ class DriveIntegration(GoogleOAuthClient):
                 },
             ).execute()
             
-            # Save webhook info for later reference
-            save_token(self._user_id, "google_drive_webhook", {
+            # Save webhook info in token data
+            save_webhook_info(self._user_id, self.SERVICE_NAME, {
                 "channel_id": channel["id"],
                 "resource_id": channel.get("resourceId"),
                 "folder_id": folder_id,
@@ -294,9 +298,10 @@ class DriveIntegration(GoogleOAuthClient):
                     "resourceId": resource_id,
                 },
             ).execute()
-            
-            # Remove saved webhook info
-            delete_token(self._user_id, "google_drive_webhook")
+
+            print(f"Stopped webhook for user {self._user_id}")
+            # Remove webhook info from token data
+            clear_webhook_info(self._user_id, self.SERVICE_NAME)
             
             return True
         except HttpError as e:
@@ -305,8 +310,32 @@ class DriveIntegration(GoogleOAuthClient):
     
     def get_webhook_info(self) -> Optional[Dict[str, Any]]:
         """Get the current webhook configuration if any."""
-        return get_token(self._user_id, "google_drive_webhook")
+        return get_webhook_info_from_storage(self._user_id, self.SERVICE_NAME)
 
+    def get_drive_status(self) -> Dict[str, Any]:
+        """Get the current webhook status."""
+         
+        # Check if webhook is still valid (compare expiration time)
+        webhook_info = self.get_webhook_info()
+
+        webhook_active = False
+        webhook_expiration = None
+        print(f"webhook_info: {webhook_info}")
+        if webhook_info and webhook_info.get("expiration"):
+            webhook_expiration = webhook_info["expiration"]
+
+            try:
+                expiration_dt = datetime.fromisoformat(webhook_expiration.replace("Z", "+00:00"))
+                webhook_active = expiration_dt > datetime.now(expiration_dt.tzinfo)
+            except (ValueError, TypeError):
+                webhook_active = False
+        
+        return {
+            "connected": self.is_connected(), 
+            "email": self.get_user_email() if self.is_connected() else None,
+            "webhook_active": webhook_active,
+            "webhook_expiration": webhook_expiration,
+        }
 
 # --------------------------------------------------------------------------- #
 # User-Specific Instance Helper

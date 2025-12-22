@@ -111,9 +111,55 @@ def save_gmail_history_id(user_id: str, history_id: str) -> None:
     save_token(user_id, "gmail", token_data)
 
 
-def get_gmail_history_id(user_id: str) -> Optional[str]:
-    """Get the last Gmail history ID for incremental sync."""
-    token_data = get_token(user_id, "gmail")
+
+
+# --------------------------------------------------------------------------- #
+# Webhook Info Helpers (generic for any service)
+# --------------------------------------------------------------------------- #
+
+def save_webhook_info(user_id: str, service: str, webhook_info: Dict[str, Any]) -> None:
+    """
+    Save webhook info nested in the service's token data.
+    
+    Args:
+        user_id: The user's ID
+        service: The service name (e.g., "gmail", "google_drive")
+        webhook_info: Webhook configuration (channel_id, expiration, etc.)
+    """
+    token_data = get_token(user_id, service) or {}
+    token_data["webhook"] = {
+        **webhook_info,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    save_token(user_id, service, token_data)
+
+
+def get_webhook_info(user_id: str, service: str) -> Optional[Dict[str, Any]]:
+    """
+    Get webhook info from the service's token data.
+    
+    Args:
+        user_id: The user's ID
+        service: The service name (e.g., "gmail", "google_drive")
+    
+    Returns:
+        Webhook info dict or None if not set
+    """
+    token_data = get_token(user_id, service)
     if token_data:
-        return token_data.get("last_history_id")
+        return token_data.get("webhook")
     return None
+
+
+def clear_webhook_info(user_id: str, service: str) -> None:
+    """
+    Remove webhook info from the service's token data.
+    
+    Args:
+        user_id: The user's ID
+        service: The service name (e.g., "gmail", "google_drive")
+    """
+    token_data = get_token(user_id, service)
+    if token_data and "webhook" in token_data:
+        del token_data["webhook"]
+        save_token(user_id, service, token_data)

@@ -28,10 +28,19 @@ class GmailAuthUrlResponse(BaseModel):
 class GmailStatusResponse(BaseModel):
     connected: bool
     email: Optional[str] = None
+    webhook_active: bool = False
+    webhook_expiration: Optional[str] = None
 
 
 class GmailSyncResponse(BaseModel):
     synced_count: int
+    message: str
+
+
+class GmailWebhookSetupResponse(BaseModel):
+    """Response for webhook setup."""
+    success: bool
+    expiration: Optional[str] = None
     message: str
 
 
@@ -48,9 +57,12 @@ class GmailWebhookPayload(BaseModel):
 @router.get("/status", response_model=GmailStatusResponse)
 def gmail_status(user: User = Depends(get_current_user)):
     """Get Gmail connection status."""
+    import time
     from .client import get_gmail
+    
     gmail = get_gmail(user.id)
-    return GmailStatusResponse(connected=gmail.is_connected(), email=gmail.get_user_email())
+    gmail_status = gmail.get_gmail_status()
+    return GmailStatusResponse(**gmail_status)
 
 
 @router.get("/auth-url", response_model=GmailAuthUrlResponse)
@@ -87,13 +99,20 @@ def gmail_auth(
     /integrations/gmail/auth?code=AUTH_CODE&redirect_uri=https://yourapp.com/callback
     """
     from .client import get_gmail
+    from ...config import settings
 
     gmail = get_gmail(user.id)
     success = gmail.complete_auth(code, redirect_uri)
     if not success:
         raise HTTPException(status_code=400, detail="Failed to complete authentication")
     
-    return GmailStatusResponse(connected=True, email=gmail.get_user_email())
+    # Auto-setup webhook after successful auth (don't fail if this fails)
+    try:
+        response = gmail.setup_push_notifications(settings.gmail_push_topic_name)
+    except Exception as e:
+        print(f"Warning: Gmail webhook auto-setup failed for user {user.id}: {e}")
+    
+    return GmailStatusResponse(**gmail.get_gmail_status())
 
 
 @router.post("/disconnect", response_model=GmailStatusResponse)
@@ -101,9 +120,11 @@ def gmail_disconnect(user: User = Depends(get_current_user)):
     """Disconnect Gmail integration."""
     from .client import get_gmail
     gmail = get_gmail(user.id)
+    gmail.stop_push_notifications()
     gmail.disconnect()
 
-    return GmailStatusResponse(connected=False, email=None)
+
+    return GmailStatusResponse(connected=False, email=None, webhook_active=False, webhook_expiration=None)
 
 
 @router.post("/sync", response_model=GmailSyncResponse)
@@ -153,15 +174,36 @@ def gmail_process_new(user: User = Depends(get_current_user)):
 # Webhook Endpoints (no auth - called by Google)
 # --------------------------------------------------------------------------- #
 
-@router.post("/webhook/setup")
+@router.post("/webhook/setup", response_model=GmailWebhookSetupResponse)
 def gmail_webhook_setup(user: User = Depends(get_current_user)):
     """
-    Setup Gmail webhook.
+    Setup Gmail webhook for push notifications.
+    
+    This is typically called automatically after OAuth, but can be used
+    to manually set up or renew the webhook.
     """
     try:
-        from .orchestrator import setup_push_notifications
+        from .client import get_gmail
         from ...config import settings
-        setup_push_notifications(user.id, settings.gmail_push_topic_name)
+        
+        gmail = get_gmail(user.id)
+        if not gmail.is_connected():
+            raise HTTPException(status_code=400, detail="Gmail not connected. Authorize first.")
+        
+        response = gmail.setup_push_notifications(settings.gmail_push_topic_name)
+        if not response:
+            return GmailWebhookSetupResponse(
+                success=False,
+                message="Failed to set up webhook"
+            )
+        
+        return GmailWebhookSetupResponse(
+            success=True,
+            expiration=response.get("expiration"),
+            message="Webhook set up successfully"
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error setting up webhook: {str(e)}")
 

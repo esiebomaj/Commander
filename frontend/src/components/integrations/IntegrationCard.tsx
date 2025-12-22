@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Mail, MessageSquare, Calendar, CheckCircle2, Circle, FileText } from 'lucide-react'
+import { Mail, MessageSquare, Calendar, CheckCircle2, Circle, FileText, Bell, BellOff } from 'lucide-react'
 
 interface IntegrationCardProps {
   name: string
@@ -8,10 +8,13 @@ interface IntegrationCardProps {
   connected: boolean
   email?: string
   extraInfo?: string
+  webhookActive?: boolean
   onConnect?: () => void
   onDisconnect?: () => void
   onSync?: () => void
+  onSetupWebhook?: () => void
   loading?: boolean
+  webhookLoading?: boolean
 }
 
 const integrationConfig: Record<string, { icon: typeof Mail; color: string; bg: string }> = {
@@ -27,10 +30,13 @@ export function IntegrationCard({
   connected,
   email,
   extraInfo,
+  webhookActive,
   onConnect,
   onDisconnect,
   onSync,
+  onSetupWebhook,
   loading,
+  webhookLoading,
 }: IntegrationCardProps) {
   const config = integrationConfig[name] || { icon: Mail, color: 'text-muted-foreground', bg: 'bg-muted' }
   const Icon = config.icon
@@ -68,6 +74,18 @@ export function IntegrationCard({
             <p className="text-xs text-muted-foreground mt-1">{extraInfo}</p>
           )}
           
+          {/* Webhook status indicator */}
+          {connected && webhookActive !== undefined && (
+            <div className="flex items-center gap-1.5 mt-2">
+              {webhookActive ? null
+                : <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                    <BellOff className="h-3 w-3" />
+                    Webhook disabled
+                  </span>
+                }
+            </div>
+          )}
+          
           <div className="flex items-center gap-2 mt-4">
             {connected ? (
               <>
@@ -80,6 +98,18 @@ export function IntegrationCard({
                     className="h-8 text-sm"
                   >
                     Sync
+                  </Button>
+                )}
+                {/* Show webhook setup button if webhook is not active */}
+                {onSetupWebhook && webhookActive === false && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onSetupWebhook}
+                    disabled={webhookLoading}
+                    className="h-8 text-sm"
+                  >
+                    {webhookLoading ? 'Setting up...' : 'Enable Webhook'}
                   </Button>
                 )}
                 {onDisconnect && (
