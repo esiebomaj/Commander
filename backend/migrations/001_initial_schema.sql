@@ -160,3 +160,9 @@ CREATE POLICY "Users can update own subscriptions"
 CREATE POLICY "Users can delete own subscriptions" 
     ON public.push_subscriptions FOR DELETE 
     USING (auth.uid() = user_id);
+
+
+-- Index for webhook email lookups
+CREATE INDEX idx_integration_tokens_webhook_email 
+ON public.integration_tokens ((token_data->'webhook'->>'email'))
+WHERE service = 'gmail';

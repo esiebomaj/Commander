@@ -67,7 +67,7 @@ def process_new_context(
     # Create and save proposed actions
     for action_type, payload, confidence in actions:
         proposed = ProposedAction(
-            id=None,  # Will be assigned by database
+            id=0,  # Will be assigned by database
             context_id=context.id,
             type=action_type,
             payload=payload,

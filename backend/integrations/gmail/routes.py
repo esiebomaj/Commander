@@ -219,31 +219,60 @@ def gmail_webhook(payload: GmailWebhookPayload):
     Note: This endpoint does NOT require authentication as it's called by Google.
     The webhook uses the email address in the notification to determine the user.
     """
+    import base64
+    import json
+    from ..token_storage import get_user_ids_by_webhook_email
+    
     try:
-        import base64
-        import json
-        
         # Decode the Pub/Sub message
         message_data = payload.message.get("data", "")
-        print("New email notification received")
-        if message_data:
-            decoded = base64.urlsafe_b64decode(message_data).decode("utf-8")
-            notification = json.loads(decoded)
-            
-            # TODO: Look up user by email address from notification
-            # For now, webhook processing is disabled until we implement
-            # a way to map email addresses to user IDs
-            
-            return {
-                "status": "received",
-                "email_address": notification.get("emailAddress"),
-                "history_id": notification.get("historyId"),
-                "note": "Webhook processing requires user lookup implementation",
-            }
+        print(payload)
+        if not message_data:
+            return {"status": "no_data"}
         
-        return {"status": "no_data"}
+        decoded = base64.urlsafe_b64decode(message_data).decode("utf-8")
+        notification = json.loads(decoded)
+        
+        email_address = notification.get("emailAddress")
+        history_id = notification.get("historyId")
+        
+        print(f"Gmail webhook: new email for {email_address}, history_id={history_id}")
+        
+        # Look up all users who have this email connected
+        user_ids = get_user_ids_by_webhook_email("gmail", email_address)
+        
+        if not user_ids:
+            print(f"Gmail webhook: no users found for email {email_address}")
+            return {"status": "user_not_found", "email_address": email_address}
+        
+        # Process new emails for each user
+        from .orchestrator import process_new_emails
+        total_actions = 0
+        errors = []
+        
+        for user_id in user_ids:
+            try:
+                actions = process_new_emails(user_id)
+                total_actions += len(actions)
+                print(f"Gmail webhook: processed {len(actions)} actions for user {user_id}")
+            except Exception as e:
+                print(f"Gmail webhook: error processing for user {user_id}: {e}")
+                errors.append(str(e))
+        
+        print({
+            "status": "processed",
+            "email_address": email_address,
+            "history_id": history_id,
+            "users_processed": len(user_ids),
+            "actions_created": total_actions,
+            "errors": errors if errors else None,
+        })
+        return {"status": "processed"}
+        
     except Exception as e:
         # Always return 200 to acknowledge receipt (prevents retries)
-        print(f"Error processing webhook: {str(e)}")
+        print(f"Gmail webhook error: {str(e)}")
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Error processing webhook")
+        # Return 200 with error info instead of raising to prevent Pub/Sub retries
+        return {"status": "error", "message": str(e)}
+

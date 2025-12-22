@@ -334,12 +334,13 @@ class GmailIntegration(GoogleOAuthClient):
             # Save the history ID for incremental sync
             history_id = response.get("historyId")
 
-            # Save webhook info in token data
+            # Save webhook info in token data (include email for webhook lookup)
             save_webhook_info(self._user_id, self.SERVICE_NAME, {
                 "history_id": history_id,
                 "expiration": response.get("expiration"),  # Unix timestamp in ms
                 "topic_name": topic_name,
                 "label_ids": label_ids,
+                "email": self.get_user_email(),  # For webhook user lookup
             })
             
             return response

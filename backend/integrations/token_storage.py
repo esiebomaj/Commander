@@ -163,3 +163,30 @@ def clear_webhook_info(user_id: str, service: str) -> None:
     if token_data and "webhook" in token_data:
         del token_data["webhook"]
         save_token(user_id, service, token_data)
+
+
+def get_user_ids_by_webhook_email(service: str, email: str) -> list[str]:
+    """
+    Find all user_ids that have this email in their webhook info.
+    
+    Used by webhooks to identify which user(s) a notification is for.
+    Returns a list since multiple users could have the same email connected.
+    
+    Args:
+        service: The service name (e.g., "gmail")
+        email: The email address to look up
+    
+    Returns:
+        List of user_ids that have this email connected
+    """
+    db = get_db()
+    
+    # Use Postgres JSONB operator to query directly
+    # This queries: token_data -> 'webhook' ->> 'email' = email
+    result = db.table("integration_tokens") \
+        .select("user_id") \
+        .eq("service", service) \
+        .filter("token_data->webhook->>email", "eq", email) \
+        .execute()
+    
+    return [row["user_id"] for row in result.data]
