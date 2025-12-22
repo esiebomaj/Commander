@@ -26,19 +26,30 @@ def save_token(user_id: str, service: str, token_data: Dict[str, Any]) -> None:
     """
     db = get_db()
     
-    # Add updated_at timestamp
     token_data_with_ts = {
         **token_data,
         "updated_at": datetime.utcnow().isoformat(),
     }
     
-    # Upsert - insert or update on conflict
-    db.table("integration_tokens").upsert({
-        "user_id": user_id,
-        "service": service,
-        "token_data": token_data_with_ts,
-        "updated_at": datetime.utcnow().isoformat(),
-    }, on_conflict="user_id,service").execute()
+    # Check if row exists to preserve webhook_data
+    existing = db.table("integration_tokens").select("id").eq("user_id", user_id).eq("service", service).execute()
+    existing_id = existing.data[0]["id"] if existing.data else None
+    
+    if existing_id:
+        # Update only token_data, preserve webhook_data
+        db.table("integration_tokens").update({
+            "token_data": token_data_with_ts,
+            "updated_at": datetime.utcnow().isoformat(),
+        }).eq("id", existing_id).execute()
+    else:
+        # Insert new row
+        db.table("integration_tokens").insert({
+            "user_id": user_id,
+            "service": service,
+            "token_data": token_data_with_ts,
+            "webhook_data": {},
+            "updated_at": datetime.utcnow().isoformat(),
+        }).execute()
 
 
 def get_token(user_id: str, service: str) -> Optional[Dict[str, Any]]:
@@ -93,76 +104,40 @@ def list_services(user_id: str) -> list[str]:
     return [row["service"] for row in result.data]
 
 
-# --------------------------------------------------------------------------- #
-# Gmail-specific helpers
-# --------------------------------------------------------------------------- #
-
-def save_gmail_history_id(user_id: str, history_id: str) -> None:
-    """
-    Save the last Gmail history ID for incremental sync.
-    
-    Args:
-        user_id: The user's ID
-        history_id: The Gmail history ID to save
-    """
-    token_data = get_token(user_id, "gmail") or {}
-    token_data["last_history_id"] = history_id
-    token_data["history_updated_at"] = datetime.utcnow().isoformat()
-    save_token(user_id, "gmail", token_data)
-
-
-
 
 # --------------------------------------------------------------------------- #
 # Webhook Info Helpers (generic for any service)
 # --------------------------------------------------------------------------- #
 
 def save_webhook_info(user_id: str, service: str, webhook_info: Dict[str, Any]) -> None:
-    """
-    Save webhook info nested in the service's token data.
-    
-    Args:
-        user_id: The user's ID
-        service: The service name (e.g., "gmail", "google_drive")
-        webhook_info: Webhook configuration (channel_id, expiration, etc.)
-    """
-    token_data = get_token(user_id, service) or {}
-    token_data["webhook"] = {
-        **webhook_info,
+    """Save webhook info for a service. Token must already exist. """
+    db = get_db()
+    webhook_data = {**webhook_info, "updated_at": datetime.utcnow().isoformat()}
+    db.table("integration_tokens").update({
+        "webhook_data": webhook_data,
         "updated_at": datetime.utcnow().isoformat(),
-    }
-    save_token(user_id, service, token_data)
+    }).eq("user_id", user_id).eq("service", service).execute()
 
 
 def get_webhook_info(user_id: str, service: str) -> Optional[Dict[str, Any]]:
     """
     Get webhook info from the service's token data.
-    
-    Args:
-        user_id: The user's ID
-        service: The service name (e.g., "gmail", "google_drive")
-    
-    Returns:
-        Webhook info dict or None if not set
     """
-    token_data = get_token(user_id, service)
-    if token_data:
-        return token_data.get("webhook")
+    db = get_db()
+    result = db.table("integration_tokens").select("webhook_data").eq("user_id", user_id).eq("service", service).execute()
+    if result.data:
+        return result.data[0]["webhook_data"]
     return None
 
 
+
 def clear_webhook_info(user_id: str, service: str) -> None:
-    """
-    Remove webhook info from the service's token data.
-    
-    Args:
-        user_id: The user's ID
-        service: The service name (e.g., "gmail", "google_drive")
-    """
-    token_data = get_token(user_id, service)
-    if token_data and "webhook" in token_data:
-        del token_data["webhook"]
-        save_token(user_id, service, token_data)
+    """Clear webhook info for a service."""
+    db = get_db()
+    db.table("integration_tokens").update({
+        "webhook_data": {},
+        "updated_at": datetime.utcnow().isoformat(),
+    }).eq("user_id", user_id).eq("service", service).execute()
 
 
 def get_user_ids_by_webhook_email(service: str, email: str) -> list[str]:
@@ -182,11 +157,11 @@ def get_user_ids_by_webhook_email(service: str, email: str) -> list[str]:
     db = get_db()
     
     # Use Postgres JSONB operator to query directly
-    # This queries: token_data -> 'webhook' ->> 'email' = email
+    # This queries: webhook_data -> 'email' = email
     result = db.table("integration_tokens") \
         .select("user_id") \
         .eq("service", service) \
-        .filter("token_data->webhook->>email", "eq", email) \
+        .filter("webhook_data->>email", "eq", email) \
         .execute()
     
     return [row["user_id"] for row in result.data]

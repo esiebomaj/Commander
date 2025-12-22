@@ -162,7 +162,11 @@ CREATE POLICY "Users can delete own subscriptions"
     USING (auth.uid() = user_id);
 
 
+-- Add webhook data column to integration tokens table
+ALTER TABLE public.integration_tokens 
+ADD COLUMN IF NOT EXISTS webhook_data JSONB DEFAULT '{}'::jsonb;
+
 -- Index for webhook email lookups
-CREATE INDEX idx_integration_tokens_webhook_email 
-ON public.integration_tokens ((token_data->'webhook'->>'email'))
+CREATE INDEX IF NOT EXISTS idx_integration_tokens_webhook_email 
+ON public.integration_tokens ((webhook_data->>'email'))
 WHERE service = 'gmail';

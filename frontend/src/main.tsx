@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { ThemeProvider } from './hooks/useTheme'
 
-console.log('Main.tsx loading...')
 
 // Initialize theme before React renders to prevent flash
 const initTheme = () => {

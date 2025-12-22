@@ -91,8 +91,6 @@ export async function updateAction(
   actionId: number,
   payload: Record<string, any>
 ): Promise<ProposedAction> {
-  console.log('Payload:', payload);
-  console.log("--------------------------------");
   return fetchApi<ProposedAction>(`/actions/${actionId}`, {
     method: 'PATCH',
     body: JSON.stringify({ payload }),
