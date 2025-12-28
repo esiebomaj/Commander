@@ -89,6 +89,16 @@ export interface GitHubAuthUrlResponse {
   instructions: string
 }
 
+export interface SlackStatus {
+  connected: boolean
+  team_name?: string
+}
+
+export interface SlackAuthUrlResponse {
+  auth_url: string
+  instructions: string
+}
+
 export interface ProcessTranscriptResponse {
   success: boolean
   context_id?: string

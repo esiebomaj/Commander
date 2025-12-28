@@ -69,14 +69,15 @@ from .integrations.google_calendar.tools import CALENDAR_TOOLS, CALENDAR_TOOL_EX
 # Import async GitHub tools getter
 from .integrations.github.tools import get_github_tools
 
+from .integrations.slack.tools import get_slack_tools
 
 async def get_all_tools(user_id: str) -> Dict[ActionType, Callable]:
     """Get all tool executors, including GitHub executors."""
     github_read_tools, github_write_tools = await get_github_tools(user_id)
+    slack_read_tools, slack_write_tools = await get_slack_tools(user_id)
 
-    read_tools = github_read_tools
-
-    write_tools = github_write_tools | GMAIL_TOOL_EXECUTORS | CALENDAR_TOOL_EXECUTORS | {
+    read_tools = github_read_tools | slack_read_tools
+    write_tools = github_write_tools | slack_write_tools | GMAIL_TOOL_EXECUTORS | CALENDAR_TOOL_EXECUTORS | {
         ActionType.CREATE_TODO: create_todo,
     } 
 

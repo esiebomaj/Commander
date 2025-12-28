@@ -204,7 +204,11 @@ async def decide_actions_for_context(
 
         if write_tool_calls and not read_tool_calls:
             for tc in write_tool_calls:
-                actions.append((ActionType(tc["name"]), dict(tc.get("args", {})), float(tc.get("confidence", 0.7))))
+                actions.append((
+                    ActionType(tc["name"]), 
+                    dict(tc.get("args", {})), 
+                    float(tc.get("confidence", 0.7))
+                ))
             return actions
 
 

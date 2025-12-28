@@ -114,6 +114,13 @@ class ActionType(str, Enum):
     UPDATE_ISSUE = "update_issue"
 
 
+    # slack MCP actions
+    SLACK_SEND_MESSAGE = "slack_post_message"
+    SLACK_REPLY_TO_THREAD = "slack_reply_to_thread"
+    SLACK_ADD_REACTION = "slack_add_reaction"
+    SLACK_UPLOAD_FILE = "slack_upload_file"
+
+
 class ProposedAction(BaseModel):
     """Action proposed by the LLM for a specific context item."""
 

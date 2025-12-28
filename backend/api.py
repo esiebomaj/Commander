@@ -23,6 +23,7 @@ from .integrations.gmail.routes import router as gmail_router
 from .integrations.google_calendar.routes import router as calendar_router
 from .integrations.google_drive.routes import router as drive_router
 from .integrations.github.routes import router as github_router
+from .integrations.slack.routes import router as slack_router
 
 # Import push notification module
 from . import push
@@ -56,6 +57,7 @@ app.include_router(gmail_router)
 app.include_router(calendar_router)
 app.include_router(drive_router)
 app.include_router(github_router)
+app.include_router(slack_router)
 
 
 # --------------------------------------------------------------------------- #
