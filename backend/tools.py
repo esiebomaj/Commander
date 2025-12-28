@@ -67,7 +67,7 @@ from .integrations.gmail.tools import GMAIL_TOOLS, GMAIL_TOOL_EXECUTORS
 from .integrations.google_calendar.tools import CALENDAR_TOOLS, CALENDAR_TOOL_EXECUTORS
 
 # Import async GitHub tools getter
-from .mcp.github import get_github_tools
+from .integrations.github.tools import get_github_tools
 
 
 async def get_all_tools(user_id: str) -> Dict[ActionType, Callable]:

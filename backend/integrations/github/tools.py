@@ -4,12 +4,10 @@ GitHub MCP tools integration.
 Provides GitHub tools via the Model Context Protocol (MCP) server,
 using OAuth tokens stored per-user for authentication.
 """
-from typing import Optional
-
 from mcp_use.client import MCPClient
 from mcp_use.agents.adapters.langchain_adapter import LangChainAdapter
 
-from ..integrations.github.oauth import get_github_client
+from .oauth import get_github_client
 
 
 class GitHubMCPError(Exception):
