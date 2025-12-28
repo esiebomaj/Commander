@@ -44,7 +44,17 @@ export function ActionsPage() {
   
   const handleApprove = async (actionId: number) => {
     try {
-      await approveMutation.mutateAsync(actionId)
+      const res = await approveMutation.mutateAsync(actionId)
+      console.log(res)
+      if (res.status === 'error') {
+        toast({
+          title: "Error",
+          description: "Failed to approve action.",
+          variant: "destructive",
+        })
+        handleEdit(res)
+        return
+      }
       toast({
         title: "Action approved",
         description: "The action has been executed successfully.",

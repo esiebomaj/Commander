@@ -3,8 +3,10 @@ Gmail integration API routes.
 """
 from __future__ import annotations
 
+from datetime import datetime
 import traceback
 from typing import Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
@@ -153,7 +155,7 @@ def gmail_sync(
 
 
 @router.post("/process-new", response_model=RunResponse)
-def gmail_process_new(user: User = Depends(get_current_user)):
+async def gmail_process_new(user: User = Depends(get_current_user)):
     """
     Process new emails since last sync.
     
@@ -162,13 +164,41 @@ def gmail_process_new(user: User = Depends(get_current_user)):
     try:
         from .orchestrator import process_new_emails
         
-        actions = process_new_emails(user.id)
+        actions = await process_new_emails(user.id)
         return RunResponse(proposed_actions=actions)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing new emails: {str(e)}")
 
+
+class TestNewEmailRequest(BaseModel):
+    subject: str
+    body: str
+
+@router.post("/test-new-email", response_model=RunResponse)
+async def test_new_email(request: TestNewEmailRequest, user: User = Depends(get_current_user)):
+    """
+    Test a new email.
+    """
+    from ...orchestrator import process_new_context  
+    from ...models import EmailMessage
+    from ...adapters import email_to_context
+    email = {
+        "id": str(uuid4()),
+        "user_id": user.id,
+        "thread_id": str(uuid4()),
+        "from_email": "test@example.com",
+        "subject": request.subject,
+        "received_at": datetime.now(),
+        "body_text": request.body,
+        "labels": ["INBOX", "UNREAD", "IMPORTANT"],
+    }
+
+    email_message = EmailMessage(**email)
+    context = email_to_context(email_message)
+    actions = await process_new_context(user.id, context)
+    return RunResponse(proposed_actions=actions)
 
 # --------------------------------------------------------------------------- #
 # Webhook Endpoints (no auth - called by Google)
@@ -209,7 +239,7 @@ def gmail_webhook_setup(user: User = Depends(get_current_user)):
 
 
 @router.post("/webhook")
-def gmail_webhook(payload: GmailWebhookPayload):
+async def gmail_webhook(payload: GmailWebhookPayload):
     """
     Webhook endpoint for Gmail Pub/Sub push notifications.
     
@@ -252,7 +282,7 @@ def gmail_webhook(payload: GmailWebhookPayload):
         
         for user_id in user_ids:
             try:
-                actions = process_new_emails(user_id)
+                actions = await process_new_emails(user_id)
                 total_actions += len(actions)
                 print(f"Gmail webhook: processed {len(actions)} actions for user {user_id}")
             except Exception as e:

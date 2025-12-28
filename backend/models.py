@@ -105,6 +105,15 @@ class ActionType(str, Enum):
     CREATE_TODO = "create_todo"
 
 
+    # github MCP actions
+    CREATE_REPOSITORY = "create_repository"
+    CREATE_ISSUE = "create_issue"
+    CREATE_BRANCH = "create_branch"
+    CREATE_PULL_REQUEST = "create_pull_request"
+    MERGE_PULL_REQUEST = "merge_pull_request"
+    UPDATE_ISSUE = "update_issue"
+
+
 class ProposedAction(BaseModel):
     """Action proposed by the LLM for a specific context item."""
 
@@ -120,6 +129,7 @@ class ProposedAction(BaseModel):
     source_type: SourceType = SourceType.GMAIL
     sender: Optional[str] = None
     summary: Optional[str] = None  # Short description of what triggered this
+    result: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
     def to_prompt_string(self) -> str:
         """Format this action as a string for LLM history prompts."""
@@ -147,7 +157,7 @@ class ExecutionResult(BaseModel):
     action_id: int
     status: Literal["executed", "skipped", "error"]
     result: Dict[str, Any] = Field(default_factory=dict)
-    executed_at: datetime = Field(default_factory=datetime.utcnow)
+    executed_at: str = Field(default_factory=datetime.utcnow().isoformat())
 
 
 class RunResponse(BaseModel):

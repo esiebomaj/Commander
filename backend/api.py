@@ -72,9 +72,9 @@ def get_actions(
 
 
 @app.post("/actions/{action_id}/approve")
-def approve(action_id: int, user: User = Depends(get_current_user)):
+async def approve(action_id: int, user: User = Depends(get_current_user)):
     try:
-        updated = approve_action(user_id=user.id, action_id=action_id)
+        updated = await approve_action(user_id=user.id, action_id=action_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return updated

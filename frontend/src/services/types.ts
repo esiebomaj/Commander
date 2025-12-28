@@ -28,6 +28,7 @@ export interface ProposedAction {
   source_type: SourceType
   sender?: string
   summary?: string
+  result?: Record<string, any>
 }
 
 export interface Integration {

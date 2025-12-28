@@ -377,7 +377,6 @@ class QdrantVectorStore:
             limit=limit,
             score_threshold=score_threshold,
         )
-        print(results)
         return [
             (_payload_to_context(result.payload), result.score)
             for result in results.points

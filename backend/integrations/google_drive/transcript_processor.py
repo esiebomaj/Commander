@@ -166,7 +166,7 @@ def format_metadata_summary(metadata: MeetingMetadata) -> str:
 # Full Processing Pipeline
 # --------------------------------------------------------------------------- #
 
-def process_new_transcript(
+async def process_new_transcript(
     user_id: str,
     file_id: str,
     skip_if_exists: bool = True,
@@ -262,12 +262,12 @@ def process_new_transcript(
     
     # Convert to ContextItem using existing adapter
     context = meeting_to_context(meeting)
-    created_actions = process_new_context(user_id, context)
+    created_actions = await process_new_context(user_id, context)
     
     return context, created_actions
 
 
-def process_recent_transcripts(
+async def process_recent_transcripts(
     user_id: str,
     max_files: int = 10,
     since_hours: int = 24,
@@ -300,7 +300,7 @@ def process_recent_transcripts(
     
     results = []
     for file in files:
-        result = process_new_transcript(user_id, file["id"])
+        result = await process_new_transcript(user_id, file["id"])
         if result:
             results.append(result)
     

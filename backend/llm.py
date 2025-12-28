@@ -7,12 +7,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 from .config import settings
 from .models import ActionType, ContextItem, ProposedAction
-from .tools import ALL_TOOLS
+from .tools import get_all_tools
+import json 
 
 
 # --------------------------------------------------------------------------- #
@@ -148,7 +149,7 @@ def _parse_tool_call(tool_call: Dict[str, Any]) -> Tuple[ActionType, Dict[str, A
 # Main LLM Function
 # --------------------------------------------------------------------------- #
 
-def decide_actions_for_context(
+async def decide_actions_for_context(
     context: ContextItem,
     similar_history: Optional[List[Tuple[ContextItem, List[ProposedAction]]]] = None,
     recent_history: Optional[List[Tuple[ContextItem, List[ProposedAction]]]] = None,
@@ -168,7 +169,13 @@ def decide_actions_for_context(
     """
     model = model or settings.llm_model
     llm = ChatOpenAI(model=model, temperature=0.2, api_key=settings.openai_api_key)
-    llm_with_tools = llm.bind_tools(ALL_TOOLS)
+    
+    read_tools, write_tools = await get_all_tools()
+    all_tools = list(read_tools.values()) + list(write_tools.values())
+
+    print(all_tools)
+
+    llm_with_tools = llm.bind_tools(all_tools)
 
     user_prompt = _build_user_prompt(context, similar_history, recent_history)
     
@@ -177,12 +184,28 @@ def decide_actions_for_context(
         HumanMessage(content=user_prompt),
     ]
     
-    response = llm_with_tools.invoke(messages)
-    tool_calls = response.tool_calls or []
-    
-    actions: List[Tuple[ActionType, Dict[str, Any], float]] = []
-    for tool_call in tool_calls:
-        action_type, payload, confidence = _parse_tool_call(tool_call)
-        actions.append((action_type, payload, confidence))
+    while True:
+        response = await llm_with_tools.ainvoke(messages)
+        tool_calls = response.tool_calls or []
+        print("TOOL CALLS", tool_calls)
+        print("--------------------------------")
+        if not tool_calls:
+            return []
+        
+        actions: List[Tuple[ActionType, Dict[str, Any], float]] = []
 
-    return actions
+        read_tool_calls = [tc for tc in tool_calls if tc["name"] in read_tools]
+        write_tool_calls = [tc for tc in tool_calls if tc["name"] in write_tools]
+
+        for tc in read_tool_calls:
+            tool = read_tools[tc["name"]]
+            result = await tool.ainvoke(dict(tc.get("args", {})))
+            messages.append(ToolMessage(tool_call_id=tc["id"], content=json.dumps(result) if not isinstance(result, str) else result))
+
+        if write_tool_calls and not read_tool_calls:
+            for tc in write_tool_calls:
+                actions.append((ActionType(tc["name"]), dict(tc.get("args", {})), float(tc.get("confidence", 0.7))))
+            return actions
+
+
+

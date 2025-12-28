@@ -60,7 +60,7 @@ def sync_recent_emails(
     return len(emails)
 
 
-def process_new_emails(user_id: str) -> List[ProposedAction]:
+async def process_new_emails(user_id: str) -> List[ProposedAction]:
     """
     Fetch and process new emails since last sync.
     
@@ -96,7 +96,7 @@ def process_new_emails(user_id: str) -> List[ProposedAction]:
         # Convert to context
         context = email_to_context(email)
      
-        new_actions = process_new_context(user_id, context)
+        new_actions = await process_new_context(user_id, context)
         actions.extend(new_actions)
     
     print(f"Created {len(actions)} actions")
