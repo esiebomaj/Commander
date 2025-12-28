@@ -59,6 +59,14 @@ class Settings(BaseSettings):
     frontend_url: str = Field(default="http://localhost:5173")
     backend_url: str = Field(default="http://localhost:8000", description="Public backend URL for webhooks")
     gmail_push_topic_name: str = Field(default="projects/commander-481218/topics/commander-gmail")
+    
+    # GitHub OAuth Settings
+    github_client_id: str = Field(default="", description="GitHub OAuth App client ID")
+    github_client_secret: str = Field(default="", description="GitHub OAuth App client secret")
+    
+    # Slack OAuth Settings
+    slack_client_id: str = Field(default="", description="Slack App client ID")
+    slack_client_secret: str = Field(default="", description="Slack App client secret")
 
 
     @property

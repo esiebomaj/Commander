@@ -22,6 +22,8 @@ from .storage import update_action_payload
 from .integrations.gmail.routes import router as gmail_router
 from .integrations.google_calendar.routes import router as calendar_router
 from .integrations.google_drive.routes import router as drive_router
+from .integrations.github.routes import router as github_router
+from .integrations.slack.routes import router as slack_router
 
 # Import push notification module
 from . import push
@@ -54,6 +56,8 @@ app.add_middleware(
 app.include_router(gmail_router)
 app.include_router(calendar_router)
 app.include_router(drive_router)
+app.include_router(github_router)
+app.include_router(slack_router)
 
 
 # --------------------------------------------------------------------------- #
@@ -72,9 +76,9 @@ def get_actions(
 
 
 @app.post("/actions/{action_id}/approve")
-def approve(action_id: int, user: User = Depends(get_current_user)):
+async def approve(action_id: int, user: User = Depends(get_current_user)):
     try:
-        updated = approve_action(user_id=user.id, action_id=action_id)
+        updated = await approve_action(user_id=user.id, action_id=action_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return updated
@@ -103,6 +107,26 @@ def update_action(
         return updated
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class DeleteActionsRequest(BaseModel):
+    """Request body for bulk delete."""
+    action_ids: list[int]
+
+
+@app.post("/actions/delete")
+def delete_multiple_actions(
+    request: DeleteActionsRequest,
+    user: User = Depends(get_current_user),
+):
+    """Delete multiple actions by their IDs."""
+    from .storage import delete_actions
+    
+    if not request.action_ids:
+        raise HTTPException(status_code=400, detail="No action IDs provided")
+    
+    deleted_count = delete_actions(user.id, request.action_ids)
+    return {"success": True, "deleted": deleted_count}
 
 
 # --------------------------------------------------------------------------- #

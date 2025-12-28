@@ -39,6 +39,7 @@ export function ActionEditModal({ action, open, onClose }: ActionEditModalProps)
   const [payloadJson, setPayloadJson] = useState('')
   const [jsonError, setJsonError] = useState('')
   const [sourceInfoOpen, setSourceInfoOpen] = useState(false)
+  const [resultOpen, setResultOpen] = useState(false)
   
   const updateMutation = useUpdateAction()
   const approveMutation = useApproveAction()
@@ -49,6 +50,7 @@ export function ActionEditModal({ action, open, onClose }: ActionEditModalProps)
       setPayloadJson(JSON.stringify(action.payload, null, 2))
       setJsonError('')
       setSourceInfoOpen(false)
+      setResultOpen(false)
     }
   }, [action])
   
@@ -68,6 +70,7 @@ export function ActionEditModal({ action, open, onClose }: ActionEditModalProps)
     try {
       const payload = JSON.parse(payloadJson)
       await updateMutation.mutateAsync({ actionId: action.id, payload })
+
       toast({
         title: "Saved",
         description: "Action updated successfully.",
@@ -87,8 +90,18 @@ export function ActionEditModal({ action, open, onClose }: ActionEditModalProps)
     
     try {
       const payload = JSON.parse(payloadJson)
-      await updateMutation.mutateAsync({ actionId: action.id, payload })
-      await approveMutation.mutateAsync(action.id)
+      await updateMutation.mutateAsync({ actionId: action.id, payload})
+      const res = await approveMutation.mutateAsync(action.id)
+      console.log(res)
+      if (res.status === 'error') {
+        toast({
+          title: "Error",
+          description: "Failed to approve action.",
+          variant: "destructive",
+        })
+        setResultOpen(true)
+        return
+      }
       toast({
         title: "Approved",
         description: "Action updated and executed.",
@@ -110,7 +123,7 @@ export function ActionEditModal({ action, open, onClose }: ActionEditModalProps)
   
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl overflow-y-auto max-h-[95vh]">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
@@ -189,6 +202,30 @@ export function ActionEditModal({ action, open, onClose }: ActionEditModalProps)
               <p className="text-xs text-destructive mt-1">{jsonError}</p>
             )}
           </div>
+
+          { action.status === 'error' && action.result && (
+            <div>
+            <button
+              type="button"
+              onClick={() => setResultOpen(!resultOpen)}
+              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <span className="text-destructive">Result (Error)</span>
+              {resultOpen ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+              </button>
+              {resultOpen && (
+                  <Textarea
+                    value={JSON.stringify(action.result, null, 2)}
+                    className="font-mono text-sm min-h-[200px] bg-muted text-destructive"
+                    readOnly
+                  />
+              )}
+            </div>
+          )}
         </div>
         
         <DialogFooter className="gap-2">

@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from .models import ActionType, ProposedAction, SourceType
+from .models import ActionType, ExecutionResult, ProposedAction, SourceType
 from .supabase_client import get_db
 
 
@@ -32,6 +32,7 @@ def _action_to_dict(action: ProposedAction, user_id: str) -> Dict[str, Any]:
         "source_type": action.source_type.value,
         "sender": action.sender,
         "summary": action.summary,
+        "result": action.result,
     }
 
 
@@ -45,6 +46,7 @@ def _dict_to_action(data: Dict[str, Any]) -> ProposedAction:
     return ProposedAction(
         id=data["id"],
         context_id=data["context_id"],
+        user_id=data["user_id"],
         type=ActionType(data["type"]),
         payload=data.get("payload", {}),
         confidence=data.get("confidence", 0.5),
@@ -53,6 +55,7 @@ def _dict_to_action(data: Dict[str, Any]) -> ProposedAction:
         source_type=SourceType(data.get("source_type")),
         sender=data.get("sender"),
         summary=data.get("summary"),
+        result=data.get("result", {}),
     )
 
 
@@ -152,11 +155,16 @@ def list_actions(
     return [_dict_to_action(a) for a in result.data]
 
 
-def update_action_status(user_id: str, action_id: int, status: str) -> Optional[ProposedAction]:
+def update_action_status(user_id: str, action_id: int, status: str, result: Optional[Dict] = None) -> Optional[ProposedAction]:
     """Update an action's status. Returns the updated action or None if not found."""
     db = get_db()
-    
-    result = db.table("actions").update({"status": status}).eq("id", action_id).eq("user_id", user_id).execute()
+    result_data = result if result else {}
+    data = {
+        "status": status,
+        "result": result_data,
+    }
+
+    result = db.table("actions").update(data).eq("id", action_id).eq("user_id", user_id).execute()
     
     if result.data:
         return _dict_to_action(result.data[0])
@@ -177,6 +185,25 @@ def update_action_payload(user_id: str, action_id: int, payload: Dict[str, Any])
 def get_actions_for_context(user_id: str, context_id: str) -> List[ProposedAction]:
     """Get all actions associated with a specific context for a user."""
     return list_actions(user_id=user_id, context_id=context_id)
+
+
+# --------------------------------------------------------------------------- #
+# Delete Operations
+# --------------------------------------------------------------------------- #
+
+def delete_actions(user_id: str, action_ids: List[int]) -> int:
+    """
+    Delete multiple actions by their IDs for a specific user.
+    
+    Returns:
+        Number of actions deleted
+    """
+    if not action_ids:
+        return 0
+    
+    db = get_db()
+    result = db.table("actions").delete().eq("user_id", user_id).in_("id", action_ids).execute()
+    return len(result.data)
 
 
 # --------------------------------------------------------------------------- #

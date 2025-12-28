@@ -7,7 +7,7 @@ from .context_storage import (
     get_vector_store,
     save_context,
 )
-from .executors import execute_action
+from .tools import execute_action
 from .llm import decide_actions_for_context
 from .models import ContextItem, ProposedAction
 from .storage import (
@@ -26,7 +26,7 @@ from .storage import (
 DEFAULT_HISTORY_LIMIT = 10
 
 
-def process_new_context(
+async def process_new_context(
     user_id: str,
     context: ContextItem,
 ) -> List[ProposedAction]:
@@ -58,7 +58,7 @@ def process_new_context(
     )
     
     # Get LLM decisions with history
-    actions = decide_actions_for_context(
+    actions = await decide_actions_for_context(
         context, 
         similar_history=similar_history,
         recent_history=recent_history
@@ -68,6 +68,7 @@ def process_new_context(
     for action_type, payload, confidence in actions:
         proposed = ProposedAction(
             id=0,  # Will be assigned by database
+            user_id=user_id,
             context_id=context.id,
             type=action_type,
             payload=payload,
@@ -103,7 +104,7 @@ def get_action_by_id(user_id: str, action_id: int) -> Optional[ProposedAction]:
     return get_action(user_id, action_id)
 
 
-def approve_action(user_id: str, action_id: int) -> ProposedAction:
+async def approve_action(user_id: str, action_id: int) -> ProposedAction:
     """
     Approve and execute an action.
     
@@ -124,9 +125,9 @@ def approve_action(user_id: str, action_id: int) -> ProposedAction:
     if action.status not in ("pending", "error"):
         return action  # no-op if already handled
     
-    result = execute_action(action)
+    result = await execute_action(action)
 
-    updated = update_action_status(user_id, action_id, result.status)
+    updated = update_action_status(user_id, action_id, result.status, result.result)
     return updated or action
 
 
@@ -148,5 +149,5 @@ def skip_action(user_id: str, action_id: int) -> ProposedAction:
     if not action:
         raise ValueError(f"Action {action_id} not found")
     
-    updated = update_action_status(user_id, action_id, "skipped")
+    updated = update_action_status(user_id, action_id, "skipped", None)
     return updated or action

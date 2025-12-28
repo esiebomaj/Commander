@@ -170,3 +170,8 @@ ADD COLUMN IF NOT EXISTS webhook_data JSONB DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS idx_integration_tokens_webhook_email 
 ON public.integration_tokens ((webhook_data->>'email'))
 WHERE service = 'gmail';
+
+
+-- Add result column to actions table
+ALTER TABLE public.actions 
+ADD COLUMN IF NOT EXISTS result JSONB DEFAULT '{}'::jsonb;

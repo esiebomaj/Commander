@@ -1,11 +1,31 @@
+import { useRef } from 'react'
 import type { ProposedAction } from '@/services/types'
 import { Button } from '@/components/ui/button'
-import { Check, X, Pencil, Mail, Calendar, MessageSquare, FileText, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { Check, X, Pencil, Mail, Calendar, MessageSquare, FileText, Clock, CheckCircle2, XCircle, AlertCircle, Square, CheckSquare } from 'lucide-react'
 import { format } from 'date-fns'
 import { getActionLabel, getPayloadDisplay, truncate } from '@/lib/actions'
 
+// Custom checkbox component for consistent styling
+function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.MouseEvent) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+    >
+      {checked ? (
+        <CheckSquare className="h-4 w-4" />
+      ) : (
+        <Square className="h-4 w-4" />
+      )}
+    </button>
+  )
+}
+
 interface ActionTableProps {
   actions: ProposedAction[]
+  selectedIds: Set<number>
+  onSelectionChange: (selectedIds: Set<number>) => void
   onEdit: (action: ProposedAction) => void
   onApprove: (actionId: number) => void
   onSkip: (actionId: number) => void
@@ -42,7 +62,47 @@ const getActionIcon = (type: string) => {
 
 
 
-export function ActionTable({ actions, onEdit, onApprove, onSkip }: ActionTableProps) {
+export function ActionTable({ actions, selectedIds, onSelectionChange, onEdit, onApprove, onSkip }: ActionTableProps) {
+  const lastClickedIndex = useRef<number | null>(null)
+  
+  const allSelected = actions.length > 0 && actions.every(a => selectedIds.has(a.id))
+  const someSelected = actions.some(a => selectedIds.has(a.id))
+  
+  const toggleAll = () => {
+    if (allSelected) {
+      onSelectionChange(new Set())
+    } else {
+      onSelectionChange(new Set(actions.map(a => a.id)))
+    }
+    lastClickedIndex.current = null
+  }
+  
+  const handleCheckboxClick = (e: React.MouseEvent, index: number) => {
+    const actionId = actions[index].id
+    const newSelected = new Set(selectedIds)
+    
+    // Shift+click for range selection
+    if (e.shiftKey && lastClickedIndex.current !== null) {
+      const start = Math.min(lastClickedIndex.current, index)
+      const end = Math.max(lastClickedIndex.current, index)
+      
+      // Select all items in the range
+      for (let i = start; i <= end; i++) {
+        newSelected.add(actions[i].id)
+      }
+    } else {
+      // Regular toggle
+      if (newSelected.has(actionId)) {
+        newSelected.delete(actionId)
+      } else {
+        newSelected.add(actionId)
+      }
+    }
+    
+    lastClickedIndex.current = index
+    onSelectionChange(newSelected)
+  }
+  
   if (actions.length === 0) {
     return (
       <div className="text-center py-16">
@@ -60,6 +120,9 @@ export function ActionTable({ actions, onEdit, onApprove, onSkip }: ActionTableP
       <table className="w-full">
         <thead>
           <tr className="border-b border-border bg-muted/50">
+            <th className="w-12 px-4 py-3">
+              <Checkbox checked={allSelected || someSelected} onClick={toggleAll} />
+            </th>
             <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">Action</th>
             <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">Status</th>
             <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">Source</th>
@@ -68,14 +131,17 @@ export function ActionTable({ actions, onEdit, onApprove, onSkip }: ActionTableP
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {actions.map((action) => {
+          {actions.map((action, index) => {
             const statusConfig = getStatusConfig(action.status)
             const StatusIcon = statusConfig.icon
             const ActionIcon = getActionIcon(action.type)
             const payloadDisplay = getPayloadDisplay(action.type, action.payload)
             
             return (
-              <tr key={action.id} className="hover:bg-muted/50 transition-colors">
+              <tr key={action.id} className={`hover:bg-muted/50 transition-colors ${selectedIds.has(action.id) ? 'bg-muted/30' : ''}`}>
+                <td className="w-12 px-4 py-4">
+                  <Checkbox checked={selectedIds.has(action.id)} onClick={(e) => handleCheckboxClick(e, index)} />
+                </td>
                 <td className="px-4 py-4">
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">

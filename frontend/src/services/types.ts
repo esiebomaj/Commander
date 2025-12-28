@@ -28,6 +28,7 @@ export interface ProposedAction {
   source_type: SourceType
   sender?: string
   summary?: string
+  result?: Record<string, any>
 }
 
 export interface Integration {
@@ -74,6 +75,26 @@ export interface DriveStatus {
 }
 
 export interface DriveAuthUrlResponse {
+  auth_url: string
+  instructions: string
+}
+
+export interface GitHubStatus {
+  connected: boolean
+  username?: string
+}
+
+export interface GitHubAuthUrlResponse {
+  auth_url: string
+  instructions: string
+}
+
+export interface SlackStatus {
+  connected: boolean
+  team_name?: string
+}
+
+export interface SlackAuthUrlResponse {
   auth_url: string
   instructions: string
 }

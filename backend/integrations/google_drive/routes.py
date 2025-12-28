@@ -244,7 +244,7 @@ async def process_drive_changes(user_id: str, channel_id: str):
         
         # Check for transcripts modified in the last hour
         # The deduplication check will skip any we've already processed
-        results = process_recent_transcripts(
+        results = await process_recent_transcripts(
             user_id=user_id, 
             max_files=5, 
             since_hours=1
@@ -305,7 +305,7 @@ def list_transcripts(
 
 
 @router.post("/integrations/drive/process/{file_id}", response_model=ProcessTranscriptResponse)
-def process_transcript(
+async def process_transcript(
     file_id: str,
     force: bool = Query(default=False, description="Process even if already processed"),
     user: User = Depends(get_current_user),
@@ -318,7 +318,7 @@ def process_transcript(
     try:
         from .transcript_processor import process_new_transcript
         
-        result = process_new_transcript(
+        result = await process_new_transcript(
             user_id=user.id,
             file_id=file_id,
             skip_if_exists=not force,
@@ -342,7 +342,7 @@ def process_transcript(
 
 
 @router.post("/integrations/drive/process-recent", response_model=Dict[str, Any])
-def process_recent(
+async def process_recent(
     max_files: int = Query(default=5, le=20),
     since_hours: int = Query(default=24),
     user: User = Depends(get_current_user),
@@ -355,7 +355,7 @@ def process_recent(
     try:
         from .transcript_processor import process_recent_transcripts
         
-        results = process_recent_transcripts(
+        results = await process_recent_transcripts(
             user_id=user.id,
             max_files=max_files,
             since_hours=since_hours,
