@@ -170,7 +170,7 @@ async def decide_actions_for_context(
     model = model or settings.llm_model
     llm = ChatOpenAI(model=model, temperature=0.2, api_key=settings.openai_api_key)
     
-    read_tools, write_tools = await get_all_tools()
+    read_tools, write_tools = await get_all_tools(context.user_id)
     all_tools = list(read_tools.values()) + list(write_tools.values())
 
     print(all_tools)

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, PushStatus, VapidPublicKeyResponse, PushSubscribeRequest, PushSubscribeResponse, PushTestResponse, WebhookSetupResponse } from './types'
+import type { ProposedAction, GmailStatus, GmailAuthUrlResponse, CalendarStatus, CalendarAuthUrlResponse, DriveStatus, DriveAuthUrlResponse, GitHubStatus, GitHubAuthUrlResponse, PushStatus, VapidPublicKeyResponse, PushSubscribeRequest, PushSubscribeResponse, PushTestResponse, WebhookSetupResponse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -189,6 +189,27 @@ export async function processRecentTranscripts(maxFiles: number = 5, sinceHours:
 
 export async function setupDriveWebhook(): Promise<WebhookSetupResponse> {
   return fetchApi<WebhookSetupResponse>('/integrations/drive/setup-webhook', {
+    method: 'POST',
+  })
+}
+
+// GitHub Integration API
+export async function getGitHubStatus(): Promise<GitHubStatus> {
+  return fetchApi<GitHubStatus>('/integrations/github/status')
+}
+
+export async function getGitHubAuthUrl(redirectUri: string): Promise<GitHubAuthUrlResponse> {
+  return fetchApi<GitHubAuthUrlResponse>(`/integrations/github/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+}
+
+export async function completeGitHubAuth(code: string, redirectUri: string, state?: string): Promise<GitHubStatus> {
+  const params = new URLSearchParams({ code, redirect_uri: redirectUri })
+  if (state) params.append('state', state)
+  return fetchApi<GitHubStatus>(`/integrations/github/auth?${params.toString()}`)
+}
+
+export async function disconnectGitHub(): Promise<GitHubStatus> {
+  return fetchApi<GitHubStatus>('/integrations/github/disconnect', {
     method: 'POST',
   })
 }

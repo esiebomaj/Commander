@@ -22,6 +22,7 @@ from .storage import update_action_payload
 from .integrations.gmail.routes import router as gmail_router
 from .integrations.google_calendar.routes import router as calendar_router
 from .integrations.google_drive.routes import router as drive_router
+from .integrations.github.routes import router as github_router
 
 # Import push notification module
 from . import push
@@ -54,6 +55,7 @@ app.add_middleware(
 app.include_router(gmail_router)
 app.include_router(calendar_router)
 app.include_router(drive_router)
+app.include_router(github_router)
 
 
 # --------------------------------------------------------------------------- #

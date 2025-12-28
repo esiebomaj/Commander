@@ -123,7 +123,7 @@ export function ActionEditModal({ action, open, onClose }: ActionEditModalProps)
   
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl overflow-y-auto max-h-[95vh]">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">

@@ -119,6 +119,7 @@ class ProposedAction(BaseModel):
 
     id: int
     context_id: str  # Reference to the ContextItem that triggered this action
+    user_id: str
     type: ActionType
     payload: Dict[str, Any] = Field(default_factory=dict)
     confidence: float = 0.5

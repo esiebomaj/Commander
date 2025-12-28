@@ -19,6 +19,11 @@ import {
   useDriveSync,
   useDriveWebhookSetup,
 } from '@/hooks/useDriveIntegration'
+import {
+  useGitHubStatus,
+  useGitHubConnect,
+  useGitHubDisconnect,
+} from '@/hooks/useGithubIntegration'
 import { useToast } from '@/components/ui/use-toast'
 import { useSearchParams } from 'react-router-dom'
 
@@ -44,6 +49,11 @@ export function IntegrationsPage() {
   const driveDisconnectMutation = useDriveDisconnect()
   const driveSyncMutation = useDriveSync()
   const driveWebhookSetupMutation = useDriveWebhookSetup()
+  
+  // GitHub hooks
+  const { data: githubStatus, isLoading: githubLoading } = useGitHubStatus()
+  const githubConnectMutation = useGitHubConnect()
+  const githubDisconnectMutation = useGitHubDisconnect()
   
   // Handle OAuth callbacks
   useEffect(() => {
@@ -80,6 +90,18 @@ export function IntegrationsPage() {
       if (window.opener) {
         window.opener.postMessage(
           { type: 'drive_auth_complete', code, state },
+          window.location.origin
+        )
+        window.close()
+      }
+    }
+    
+    const isGitHubCallback = searchParams.get('github_callback')
+    if (code && isGitHubCallback) {
+      console.log('GitHub OAuth callback:', { code, state })
+      if (window.opener) {
+        window.opener.postMessage(
+          { type: 'github_auth_complete', code, state },
           window.location.origin
         )
         window.close()
@@ -266,7 +288,40 @@ export function IntegrationsPage() {
     }
   }
   
-  if (gmailLoading || calendarLoading || driveLoading) {
+  // GitHub handlers
+  const handleGitHubConnect = async () => {
+    try {
+      await githubConnectMutation.mutateAsync()
+      toast({
+        title: "Connected",
+        description: "GitHub integration is now connected.",
+      })
+    } catch (error) {
+      toast({
+        title: "Connection failed",
+        description: error instanceof Error ? error.message : "Failed to connect GitHub.",
+        variant: "destructive",
+      })
+    }
+  }
+  
+  const handleGitHubDisconnect = async () => {
+    try {
+      await githubDisconnectMutation.mutateAsync()
+      toast({
+        title: "Disconnected",
+        description: "GitHub integration has been disconnected.",
+      })
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to disconnect GitHub.",
+        variant: "destructive",
+      })
+    }
+  }
+  
+  if (gmailLoading || calendarLoading || driveLoading || githubLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-2 border-muted border-t-foreground rounded-full animate-spin" />
@@ -331,6 +386,19 @@ export function IntegrationsPage() {
             driveSyncMutation.isPending
           }
           webhookLoading={driveWebhookSetupMutation.isPending}
+        />
+        
+        <IntegrationCard
+          name="GitHub"
+          description="Manage repositories, issues, and pull requests"
+          connected={githubStatus?.connected || false}
+          email={githubStatus?.username ? `@${githubStatus.username}` : undefined}
+          onConnect={handleGitHubConnect}
+          onDisconnect={handleGitHubDisconnect}
+          loading={
+            githubConnectMutation.isPending ||
+            githubDisconnectMutation.isPending
+          }
         />
         
         <IntegrationCard

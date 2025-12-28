@@ -70,9 +70,9 @@ from .integrations.google_calendar.tools import CALENDAR_TOOLS, CALENDAR_TOOL_EX
 from .mcp.github import get_github_tools
 
 
-async def get_all_tools() -> Dict[ActionType, Callable]:
+async def get_all_tools(user_id: str) -> Dict[ActionType, Callable]:
     """Get all tool executors, including GitHub executors."""
-    github_read_tools, github_write_tools = await get_github_tools()
+    github_read_tools, github_write_tools = await get_github_tools(user_id)
 
     read_tools = github_read_tools
 
@@ -88,7 +88,7 @@ async def execute_tool(action: ProposedAction) -> Dict:
 
     print(f"[{action.type.value.upper()}] {action.payload}")
 
-    read_tools, write_tools = await get_all_tools()
+    read_tools, write_tools = await get_all_tools(action.user_id)
     executors = read_tools | write_tools
     executor = executors.get(action.type)
 

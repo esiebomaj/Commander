@@ -79,6 +79,16 @@ export interface DriveAuthUrlResponse {
   instructions: string
 }
 
+export interface GitHubStatus {
+  connected: boolean
+  username?: string
+}
+
+export interface GitHubAuthUrlResponse {
+  auth_url: string
+  instructions: string
+}
+
 export interface ProcessTranscriptResponse {
   success: boolean
   context_id?: string

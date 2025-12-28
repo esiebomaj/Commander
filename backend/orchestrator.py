@@ -68,6 +68,7 @@ async def process_new_context(
     for action_type, payload, confidence in actions:
         proposed = ProposedAction(
             id=0,  # Will be assigned by database
+            user_id=user_id,
             context_id=context.id,
             type=action_type,
             payload=payload,

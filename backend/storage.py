@@ -46,6 +46,7 @@ def _dict_to_action(data: Dict[str, Any]) -> ProposedAction:
     return ProposedAction(
         id=data["id"],
         context_id=data["context_id"],
+        user_id=data["user_id"],
         type=ActionType(data["type"]),
         payload=data.get("payload", {}),
         confidence=data.get("confidence", 0.5),
