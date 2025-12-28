@@ -109,6 +109,26 @@ def update_action(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class DeleteActionsRequest(BaseModel):
+    """Request body for bulk delete."""
+    action_ids: list[int]
+
+
+@app.post("/actions/delete")
+def delete_multiple_actions(
+    request: DeleteActionsRequest,
+    user: User = Depends(get_current_user),
+):
+    """Delete multiple actions by their IDs."""
+    from .storage import delete_actions
+    
+    if not request.action_ids:
+        raise HTTPException(status_code=400, detail="No action IDs provided")
+    
+    deleted_count = delete_actions(user.id, request.action_ids)
+    return {"success": True, "deleted": deleted_count}
+
+
 # --------------------------------------------------------------------------- #
 # Context & Similarity Search Endpoints
 # --------------------------------------------------------------------------- #

@@ -188,6 +188,25 @@ def get_actions_for_context(user_id: str, context_id: str) -> List[ProposedActio
 
 
 # --------------------------------------------------------------------------- #
+# Delete Operations
+# --------------------------------------------------------------------------- #
+
+def delete_actions(user_id: str, action_ids: List[int]) -> int:
+    """
+    Delete multiple actions by their IDs for a specific user.
+    
+    Returns:
+        Number of actions deleted
+    """
+    if not action_ids:
+        return 0
+    
+    db = get_db()
+    result = db.table("actions").delete().eq("user_id", user_id).in_("id", action_ids).execute()
+    return len(result.data)
+
+
+# --------------------------------------------------------------------------- #
 # Utility Functions
 # --------------------------------------------------------------------------- #
 

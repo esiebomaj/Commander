@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getActions, approveAction, skipAction, updateAction } from '@/services/api'
+import { getActions, approveAction, skipAction, updateAction, deleteActions } from '@/services/api'
 
 export function useActions(status?: string) {
   return useQuery({
@@ -37,6 +37,17 @@ export function useUpdateAction() {
   return useMutation({
     mutationFn: ({ actionId, payload }: { actionId: number; payload: Record<string, any> }) =>
       updateAction(actionId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['actions'] })
+    },
+  })
+}
+
+export function useDeleteActions() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (actionIds: number[]) => deleteActions(actionIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['actions'] })
     },

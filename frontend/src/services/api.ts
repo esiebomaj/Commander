@@ -97,6 +97,13 @@ export async function updateAction(
   })
 }
 
+export async function deleteActions(actionIds: number[]): Promise<{ success: boolean; deleted: number }> {
+  return fetchApi('/actions/delete', {
+    method: 'POST',
+    body: JSON.stringify({ action_ids: actionIds }),
+  })
+}
+
 // Gmail Integration API
 export async function getGmailStatus(): Promise<GmailStatus> {
   return fetchApi<GmailStatus>('/integrations/gmail/status')
