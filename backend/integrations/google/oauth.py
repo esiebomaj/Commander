@@ -265,4 +265,5 @@ class GoogleOAuthClient(ABC):
                 "Not authenticated. Call get_auth_url() and complete_auth() first."
             )
         
-        return build(self.API_NAME, self.API_VERSION, credentials=creds)
+        self._service = build(self.API_NAME, self.API_VERSION, credentials=creds)
+        return self._service

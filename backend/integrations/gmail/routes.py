@@ -238,6 +238,21 @@ def gmail_webhook_setup(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Error setting up webhook: {str(e)}")
 
 
+# --------------------------------------------------------------------------- #
+# Webhook Rate Limiting
+# --------------------------------------------------------------------------- #
+
+import time
+from collections import defaultdict
+
+# Track recent webhook calls per email to debounce rapid notifications
+# Format: {email_address: last_processed_timestamp}
+_webhook_last_processed: dict[str, float] = defaultdict(float)
+
+# Minimum seconds between processing webhooks for the same email
+WEBHOOK_DEBOUNCE_SECONDS = 5.0
+
+
 @router.post("/webhook")
 async def gmail_webhook(payload: GmailWebhookPayload):
     """
@@ -248,6 +263,8 @@ async def gmail_webhook(payload: GmailWebhookPayload):
     
     Note: This endpoint does NOT require authentication as it's called by Google.
     The webhook uses the email address in the notification to determine the user.
+    
+    Includes debouncing to prevent memory issues from rapid webhook calls.
     """
     import base64
     import json
@@ -256,7 +273,6 @@ async def gmail_webhook(payload: GmailWebhookPayload):
     try:
         # Decode the Pub/Sub message
         message_data = payload.message.get("data", "")
-        print(payload)
         if not message_data:
             return {"status": "no_data"}
         
@@ -266,7 +282,29 @@ async def gmail_webhook(payload: GmailWebhookPayload):
         email_address = notification.get("emailAddress")
         history_id = notification.get("historyId")
         
-        print(f"Gmail webhook: new email for {email_address}, history_id={history_id}")
+        print(f"Gmail webhook: notification for {email_address}, history_id={history_id}")
+        
+        # Debounce: skip if we processed this email recently
+        current_time = time.time()
+        last_processed = _webhook_last_processed.get(email_address, 0)
+        
+        if current_time - last_processed < WEBHOOK_DEBOUNCE_SECONDS:
+            print(f"Gmail webhook: debounced (processed {current_time - last_processed:.1f}s ago)")
+            return {"status": "debounced"}
+        
+        # Update last processed time
+        _webhook_last_processed[email_address] = current_time
+        
+        # Clean up old entries to prevent memory leak (keep only most recent 50)
+        if len(_webhook_last_processed) > 50:
+            # Sort by timestamp descending (newest first), keep only top 50
+            sorted_emails = sorted(_webhook_last_processed.keys(), 
+                                   key=lambda k: _webhook_last_processed[k], 
+                                   reverse=True)
+            emails_to_delete = set(sorted_emails[50:])
+            
+            for email in emails_to_delete:
+                del _webhook_last_processed[email]
         
         # Look up all users who have this email connected
         user_ids = get_user_ids_by_webhook_email("gmail", email_address)
