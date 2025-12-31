@@ -3,11 +3,15 @@ Slack MCP tools integration.
 
 Provides Slack tools via the Model Context Protocol (MCP) server,
 using OAuth tokens stored per-user for authentication.
-"""
-from typing import Optional
 
-from mcp_use.client import MCPClient
-from mcp_use.agents.adapters.langchain_adapter import LangChainAdapter
+NOTE: MCP tools are disabled by default to avoid spawning Node.js processes
+on every request, which causes severe memory issues on constrained servers.
+Enable with ENABLE_MCP_TOOLS=true environment variable.
+
+For a lightweight alternative, see tools_native.py which uses slack_sdk directly.
+"""
+import os
+from typing import Optional
 
 from .oauth import get_slack_client
 
@@ -17,33 +21,41 @@ class SlackMCPError(Exception):
     pass
 
 
+# Check if MCP tools are enabled (disabled by default for memory)
+MCP_TOOLS_ENABLED = os.getenv("ENABLE_MCP_TOOLS", "false").lower() == "true"
+
+
 async def get_slack_tools(user_id: str):
     """
-    Get Slack tools from MCP server for a specific user.
+    Get Slack tools for a specific user.
     
-    Uses the user's stored OAuth token to authenticate with Slack.
+    By default, uses native slack_sdk (lightweight, no extra processes).
+    Set ENABLE_MCP_TOOLS=true to use MCP instead (spawns Node.js process).
     
     Args:
         user_id: The user's ID to fetch their Slack credentials
         
     Returns:
         Tuple of (read_tools, write_tools) dictionaries
-        
-    Raises:
-        SlackMCPError: If user hasn't connected Slack
     """
-    # Get user's Slack access token
+    # Use native SDK by default (lightweight)
+    if not MCP_TOOLS_ENABLED:
+        from .tools_native import get_slack_tools_native
+        return await get_slack_tools_native(user_id)
+    
+    # MCP path (spawns Node.js process - memory intensive)
     slack_client = get_slack_client(user_id)
     access_token = slack_client.get_access_token()
     team_id = slack_client.get_team_id()
     
     if not access_token:
-        raise SlackMCPError(
-            "Slack not connected. Please connect your Slack workspace in Integrations."
-        )
+        return {}, {}
+    
+    # Lazy import to avoid loading MCP modules when disabled
+    from mcp_use.client import MCPClient
+    from mcp_use.agents.adapters.langchain_adapter import LangChainAdapter
     
     # Build MCP config with user's token
-    # Note: The official MCP Slack server uses SLACK_BOT_TOKEN but works with user tokens too
     mcp_configs = {
         "mcpServers": {
             "slack": {
@@ -67,7 +79,6 @@ async def get_slack_tools(user_id: str):
     tools = await adapter.create_tools(client)
     
     # Categorize tools into read and write operations
-    # These are the typical tools from @modelcontextprotocol/server-slack
     write_tool_names = [
         "slack_post_message",
         "slack_reply_to_thread",
@@ -115,4 +126,3 @@ def get_slack_team_name(user_id: str) -> Optional[str]:
     """
     slack_client = get_slack_client(user_id)
     return slack_client.get_team_name()
-
